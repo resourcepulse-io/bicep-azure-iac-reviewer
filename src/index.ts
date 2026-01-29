@@ -1,10 +1,10 @@
 import * as core from '@actions/core';
 import * as log from './utils/log';
 import { initializeGitHub } from './github/context';
-import { listBicepFilesWithStatus, BicepFileWithStatus } from './github/prFiles';
+import { listBicepFilesWithStatus, BicepFileWithStatus, getBaseFileContent } from './github/prFiles';
 import type { ResourceMetadata } from './iac/armExtract';
 import type { BackendCallContext } from './backend/client';
-import type { ResourceChangeType } from './iac/sanitize';
+import type { ResourceWithChange } from './iac/sanitize';
 
 /**
  * Main entry point for the Azure IaC Reviewer GitHub Action
@@ -72,25 +72,96 @@ async function run(): Promise<void> {
 
     // Extract resource metadata from ARM templates with change tracking
     const { extractResourceMetadata } = await import('./iac/armExtract');
-    const resourcesWithChange: Array<{ resource: ResourceMetadata; change: ResourceChangeType }> = [];
+    const { diffResources } = await import('./iac/resourceDiff');
+    const { compileBicepContent } = await import('./iac/bicep');
+    const resourcesWithChange: ResourceWithChange[] = [];
 
     for (const compilation of successfulCompilations) {
       try {
+        // Get the change type for this file
+        const fileChange = fileChangeMap.get(compilation.filePath) || 'modified';
+
         // Convert ARM template object back to JSON string for extraction
         const armJson = JSON.stringify(compilation.armTemplate);
-        const extractionResult = extractResourceMetadata(armJson);
+        const headExtraction = extractResourceMetadata(armJson);
 
-        // Get the change type for this file
-        const change = fileChangeMap.get(compilation.filePath) || 'modified';
+        if (fileChange === 'added') {
+          // New file - all resources are added
+          for (const resource of headExtraction.resources) {
+            resourcesWithChange.push({ resource, change: 'added' });
+          }
+          log.debug(
+            `Extracted ${headExtraction.resourceCount} added resource(s) from ${compilation.filePath}`
+          );
+        } else if (fileChange === 'removed') {
+          // Deleted file - all resources are removed
+          for (const resource of headExtraction.resources) {
+            resourcesWithChange.push({ resource, change: 'removed' });
+          }
+          log.debug(
+            `Extracted ${headExtraction.resourceCount} removed resource(s) from ${compilation.filePath}`
+          );
+        } else {
+          // Modified file - need to diff against base branch version
+          log.info(`Performing resource-level diff for modified file: ${compilation.filePath}`);
 
-        // Add resources with their change type
-        for (const resource of extractionResult.resources) {
-          resourcesWithChange.push({ resource, change });
+          const baseContent = await getBaseFileContent(octokit, prContext, compilation.filePath);
+
+          if (baseContent) {
+            // Compile base version
+            const baseCompilation = await compileBicepContent(
+              bicepCliPath,
+              baseContent,
+              compilation.filePath
+            );
+
+            if (baseCompilation.success && baseCompilation.armTemplate) {
+              // Extract resources from base
+              const baseArmJson = JSON.stringify(baseCompilation.armTemplate);
+              const baseExtraction = extractResourceMetadata(baseArmJson);
+
+              // Diff resources between base and head
+              const diffResult = diffResources(baseExtraction.resources, headExtraction.resources);
+
+              log.info(
+                `Resource diff for ${compilation.filePath}: +${diffResult.added} added, -${diffResult.removed} removed, ~${diffResult.modified} modified, ${diffResult.unchanged} unchanged`
+              );
+
+              // Add diffed resources with appropriate change types
+              for (const diff of diffResult.diffs) {
+                // Create a ResourceMetadata from the diff
+                const resource: ResourceMetadata = {
+                  type: diff.type,
+                  kind: diff.kind,
+                  sku: diff.newSku,
+                  region: diff.newRegion,
+                  properties: diff.properties,
+                };
+
+                resourcesWithChange.push({
+                  resource,
+                  change: diff.change === 'unchanged' ? 'modified' : diff.change,
+                  oldSku: diff.oldSku,
+                  oldRegion: diff.oldRegion,
+                });
+              }
+            } else {
+              // Base compilation failed - treat all head resources as modified (fallback)
+              log.warning(
+                `Could not compile base version of ${compilation.filePath}, falling back to file-level change`
+              );
+              for (const resource of headExtraction.resources) {
+                resourcesWithChange.push({ resource, change: 'modified' });
+              }
+            }
+          } else {
+            // No base content (file is new despite being marked as modified)
+            log.debug(`No base content for ${compilation.filePath}, treating as added`);
+            for (const resource of headExtraction.resources) {
+              resourcesWithChange.push({ resource, change: 'added' });
+            }
+          }
         }
-
-        log.debug(
-          `Extracted ${extractionResult.resourceCount} resource(s) from ${compilation.filePath} (${change})`
-        );
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         log.warning(`Failed to extract resources from ${compilation.filePath}: ${errorMessage}`);

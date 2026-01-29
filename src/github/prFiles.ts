@@ -189,3 +189,41 @@ export async function listBicepFilesWithStatus(
 
   return bicepFiles;
 }
+
+/**
+ * Fetch the content of a file from the base branch (e.g., main) for comparison
+ * @param octokit - Authenticated Octokit instance
+ * @param context - PR context with owner, repo, and base branch
+ * @param filename - Path to the file in the repository
+ * @returns File content as string, or null if file doesn't exist in base branch
+ */
+export async function getBaseFileContent(
+  octokit: Octokit,
+  context: PRContext,
+  filename: string
+): Promise<string | null> {
+  try {
+    log.debug(`Fetching base branch content for ${filename} from ${context.baseBranch}`);
+
+    const response = await octokit.rest.repos.getContent({
+      owner: context.owner,
+      repo: context.repo,
+      path: filename,
+      ref: context.baseBranch,
+    });
+
+    if ('content' in response.data && typeof response.data.content === 'string') {
+      const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+      log.debug(`Successfully fetched base content for ${filename} (${content.length} bytes)`);
+      return content;
+    }
+
+    log.debug(`No content found for ${filename} in base branch (might be a directory)`);
+    return null;
+  } catch (error) {
+    // File doesn't exist in base branch (new file) or other error
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log.debug(`Could not fetch base content for ${filename}: ${errorMessage}`);
+    return null;
+  }
+}

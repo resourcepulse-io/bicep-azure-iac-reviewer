@@ -59,4 +59,12 @@ export declare function listBicepFiles(octokit: Octokit, context: PRContext): Pr
  * @throws Error if API call fails
  */
 export declare function listBicepFilesWithStatus(octokit: Octokit, context: PRContext): Promise<BicepFileWithStatus[]>;
+/**
+ * Fetch the content of a file from the base branch (e.g., main) for comparison
+ * @param octokit - Authenticated Octokit instance
+ * @param context - PR context with owner, repo, and base branch
+ * @param filename - Path to the file in the repository
+ * @returns File content as string, or null if file doesn't exist in base branch
+ */
+export declare function getBaseFileContent(octokit: Octokit, context: PRContext, filename: string): Promise<string | null>;
 //# sourceMappingURL=prFiles.d.ts.map

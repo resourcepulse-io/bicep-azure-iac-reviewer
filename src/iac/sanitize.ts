@@ -16,6 +16,9 @@ export interface SanitizedResource {
   sku?: string;
   count: number;
   change: ResourceChangeType;
+  // Fields for tracking changes on modified resources (SKU/region upgrades/downgrades)
+  oldSku?: string;
+  oldRegion?: string;
   // Fields kept for internal use but not sent to API
   type?: string;
   apiVersion?: string;
@@ -280,17 +283,28 @@ function sanitizeProperties(
 }
 
 /**
+ * Options for sanitizing a single resource
+ */
+interface SanitizeResourceOptions {
+  change?: ResourceChangeType;
+  oldSku?: string;
+  oldRegion?: string;
+}
+
+/**
  * Sanitize a single resource by removing all identifying information
  * @param resource - Resource metadata to sanitize
  * @param removedFields - Set to track removed field names
- * @param change - Change type for this resource (added/modified/removed)
+ * @param options - Optional change type and old values for modified resources
  * @returns Sanitized resource
  */
 function sanitizeSingleResource(
   resource: ResourceMetadata,
   removedFields: Set<string>,
-  change: ResourceChangeType = 'modified'
+  options: SanitizeResourceOptions = {}
 ): SanitizedResource {
+  const { change = 'modified', oldSku, oldRegion } = options;
+
   const sanitized: SanitizedResource = {
     kind: resource.kind,
     count: 1, // Each resource counts as 1; aggregation happens at a higher level if needed
@@ -305,6 +319,14 @@ function sanitizeSingleResource(
   // Region is safe to include (e.g., "eastus")
   if (resource.region) {
     sanitized.region = resource.region;
+  }
+
+  // Include old SKU/region for modified resources (tracks upgrades/downgrades)
+  if (oldSku !== undefined) {
+    sanitized.oldSku = oldSku;
+  }
+  if (oldRegion !== undefined) {
+    sanitized.oldRegion = oldRegion;
   }
 
   // Keep type for internal use (optional in API)
@@ -343,7 +365,7 @@ export function sanitizeResources(
   const sanitizedResources: SanitizedResource[] = [];
 
   for (const resource of resources) {
-    const sanitized = sanitizeSingleResource(resource, removedFields, change);
+    const sanitized = sanitizeSingleResource(resource, removedFields, { change });
     sanitizedResources.push(sanitized);
   }
 
@@ -364,20 +386,34 @@ export function sanitizeResources(
 }
 
 /**
+ * Input structure for sanitizing resources with change information
+ */
+export interface ResourceWithChange {
+  resource: ResourceMetadata;
+  change: ResourceChangeType;
+  oldSku?: string;
+  oldRegion?: string;
+}
+
+/**
  * Sanitize resources with individual change types
- * @param resourcesWithChange - Array of [resource, changeType] tuples
+ * @param resourcesWithChange - Array of resources with change type and optional old values
  * @returns Sanitization result with safe resources and removed field log
  */
 export function sanitizeResourcesWithChanges(
-  resourcesWithChange: Array<{ resource: ResourceMetadata; change: ResourceChangeType }>
+  resourcesWithChange: ResourceWithChange[]
 ): SanitizationResult {
   log.debug(`Sanitizing ${resourcesWithChange.length} resource(s) with individual change types`);
 
   const removedFields = new Set<string>();
   const sanitizedResources: SanitizedResource[] = [];
 
-  for (const { resource, change } of resourcesWithChange) {
-    const sanitized = sanitizeSingleResource(resource, removedFields, change);
+  for (const { resource, change, oldSku, oldRegion } of resourcesWithChange) {
+    const sanitized = sanitizeSingleResource(resource, removedFields, {
+      change,
+      oldSku,
+      oldRegion,
+    });
     sanitizedResources.push(sanitized);
   }
 

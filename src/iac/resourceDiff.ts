@@ -1,0 +1,253 @@
+import * as log from '../utils/log';
+import { ResourceMetadata } from './armExtract';
+
+/**
+ * Change type for individual resources within a diff
+ */
+export type ResourceDiffChange = 'added' | 'removed' | 'modified' | 'unchanged';
+
+/**
+ * Represents the difference between base and head versions of a resource
+ */
+export interface ResourceDiff {
+  type: string;
+  kind: string;
+  change: ResourceDiffChange;
+  newSku?: string;
+  newRegion?: string;
+  oldSku?: string;
+  oldRegion?: string;
+  properties?: Record<string, unknown>;
+}
+
+/**
+ * Result of diffing resources between base and head
+ */
+export interface DiffResult {
+  diffs: ResourceDiff[];
+  added: number;
+  removed: number;
+  modified: number;
+  unchanged: number;
+}
+
+/**
+ * Generate a unique key for a resource to match between base and head
+ * Uses type + sku + region as a composite key since ARM compiled output
+ * may not preserve original Bicep symbolic names
+ * @param resource - Resource metadata
+ * @returns Unique key string
+ */
+function getResourceKey(resource: ResourceMetadata): string {
+  // For resources of the same type, we need a way to match them
+  // Since ARM templates don't preserve Bicep symbolic names,
+  // we use type as primary key. For multiple resources of same type,
+  // we include sku and region to differentiate them.
+  const parts = [resource.type];
+
+  // Only include sku/region in key if present, to avoid false negatives
+  // when comparing resources with missing optional fields
+  if (resource.sku) {
+    parts.push(resource.sku);
+  }
+  if (resource.region) {
+    parts.push(resource.region);
+  }
+
+  return parts.join('|');
+}
+
+/**
+ * Generate a simpler key using just the resource type
+ * Used for matching when the composite key doesn't find a match
+ * @param resource - Resource metadata
+ * @returns Type-only key string
+ */
+function getTypeOnlyKey(resource: ResourceMetadata): string {
+  return resource.type;
+}
+
+/**
+ * Check if two resources have meaningful changes
+ * @param base - Base version of resource
+ * @param head - Head version of resource
+ * @returns True if resources have changes worth reporting
+ */
+function hasChanges(base: ResourceMetadata, head: ResourceMetadata): boolean {
+  // SKU change is always significant (affects cost)
+  if (base.sku !== head.sku) {
+    return true;
+  }
+
+  // Region change is significant (affects cost and compliance)
+  if (base.region !== head.region) {
+    return true;
+  }
+
+  // For now, we consider only SKU and region changes as significant
+  // Other property changes don't affect cost estimation
+  return false;
+}
+
+/**
+ * Diff resources between base branch and head branch versions
+ * Detects added, removed, and modified resources at the individual level
+ * @param baseResources - Resources from base branch (e.g., main)
+ * @param headResources - Resources from head branch (PR)
+ * @returns Array of resource diffs with change information
+ */
+export function diffResources(
+  baseResources: ResourceMetadata[],
+  headResources: ResourceMetadata[]
+): DiffResult {
+  log.debug(`Diffing resources: ${baseResources.length} base, ${headResources.length} head`);
+
+  const diffs: ResourceDiff[] = [];
+  let added = 0;
+  let removed = 0;
+  let modified = 0;
+  let unchanged = 0;
+
+  // Create maps for both detailed and type-only matching
+  const baseMap = new Map<string, ResourceMetadata>();
+  const baseTypeMap = new Map<string, ResourceMetadata[]>();
+
+  for (const resource of baseResources) {
+    baseMap.set(getResourceKey(resource), resource);
+
+    const typeKey = getTypeOnlyKey(resource);
+    const existing = baseTypeMap.get(typeKey);
+    if (existing) {
+      existing.push(resource);
+    } else {
+      baseTypeMap.set(typeKey, [resource]);
+    }
+  }
+
+  const headMap = new Map<string, ResourceMetadata>();
+  const headTypeMap = new Map<string, ResourceMetadata[]>();
+
+  for (const resource of headResources) {
+    headMap.set(getResourceKey(resource), resource);
+
+    const typeKey = getTypeOnlyKey(resource);
+    const existing = headTypeMap.get(typeKey);
+    if (existing) {
+      existing.push(resource);
+    } else {
+      headTypeMap.set(typeKey, [resource]);
+    }
+  }
+
+  // Track which base resources have been matched
+  const matchedBaseKeys = new Set<string>();
+
+  // Find added and modified resources (iterate over head)
+  for (const [key, headResource] of headMap) {
+    const baseResource = baseMap.get(key);
+
+    if (!baseResource) {
+      // Try to find by type only (handles SKU/region changes)
+      const typeKey = getTypeOnlyKey(headResource);
+      const baseByType = baseTypeMap.get(typeKey);
+
+      if (baseByType && baseByType.length > 0) {
+        // Found a resource of same type - check if it's a modification
+        // Find the first unmatched base resource of this type
+        const unmatchedBase = baseByType.find(b => !matchedBaseKeys.has(getResourceKey(b)));
+
+        if (unmatchedBase) {
+          matchedBaseKeys.add(getResourceKey(unmatchedBase));
+
+          if (hasChanges(unmatchedBase, headResource)) {
+            // Resource was modified (SKU or region changed)
+            diffs.push({
+              type: headResource.type,
+              kind: headResource.kind,
+              change: 'modified',
+              oldSku: unmatchedBase.sku,
+              newSku: headResource.sku,
+              oldRegion: unmatchedBase.region,
+              newRegion: headResource.region,
+              properties: headResource.properties,
+            });
+            modified++;
+            log.debug(`Modified: ${headResource.type} (${unmatchedBase.sku} -> ${headResource.sku})`);
+          } else {
+            // No meaningful changes
+            unchanged++;
+          }
+          continue;
+        }
+      }
+
+      // Resource exists in head but not in base = ADDED
+      diffs.push({
+        type: headResource.type,
+        kind: headResource.kind,
+        change: 'added',
+        newSku: headResource.sku,
+        newRegion: headResource.region,
+        properties: headResource.properties,
+      });
+      added++;
+      log.debug(`Added: ${headResource.type} (${headResource.sku || 'no sku'})`);
+    } else {
+      // Exact key match found
+      matchedBaseKeys.add(key);
+
+      if (hasChanges(baseResource, headResource)) {
+        // Resource exists in both but has changes = MODIFIED
+        diffs.push({
+          type: headResource.type,
+          kind: headResource.kind,
+          change: 'modified',
+          oldSku: baseResource.sku,
+          newSku: headResource.sku,
+          oldRegion: baseResource.region,
+          newRegion: headResource.region,
+          properties: headResource.properties,
+        });
+        modified++;
+        log.debug(`Modified: ${headResource.type} (${baseResource.sku} -> ${headResource.sku})`);
+      } else {
+        // No meaningful changes, skip
+        unchanged++;
+      }
+    }
+  }
+
+  // Find removed resources (in base but not in head)
+  for (const [key, baseResource] of baseMap) {
+    if (!matchedBaseKeys.has(key)) {
+      // Check if there's any head resource of the same type
+      const typeKey = getTypeOnlyKey(baseResource);
+      const headByType = headTypeMap.get(typeKey);
+
+      // If no resources of this type exist in head, it's definitely removed
+      if (!headByType || headByType.length === 0) {
+        diffs.push({
+          type: baseResource.type,
+          kind: baseResource.kind,
+          change: 'removed',
+          oldSku: baseResource.sku,
+          oldRegion: baseResource.region,
+        });
+        removed++;
+        log.debug(`Removed: ${baseResource.type} (${baseResource.sku || 'no sku'})`);
+      }
+      // If there are head resources of same type but they didn't match,
+      // we've already handled them as modifications above
+    }
+  }
+
+  log.debug(`Diff complete: +${added} added, -${removed} removed, ~${modified} modified, ${unchanged} unchanged`);
+
+  return {
+    diffs,
+    added,
+    removed,
+    modified,
+    unchanged,
+  };
+}

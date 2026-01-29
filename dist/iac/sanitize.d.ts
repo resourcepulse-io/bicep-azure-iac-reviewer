@@ -13,6 +13,8 @@ export interface SanitizedResource {
     sku?: string;
     count: number;
     change: ResourceChangeType;
+    oldSku?: string;
+    oldRegion?: string;
     type?: string;
     apiVersion?: string;
     safeProperties?: Record<string, unknown>;
@@ -41,14 +43,20 @@ export interface ValidationResult {
  */
 export declare function sanitizeResources(resources: ResourceMetadata[], change?: ResourceChangeType): SanitizationResult;
 /**
- * Sanitize resources with individual change types
- * @param resourcesWithChange - Array of [resource, changeType] tuples
- * @returns Sanitization result with safe resources and removed field log
+ * Input structure for sanitizing resources with change information
  */
-export declare function sanitizeResourcesWithChanges(resourcesWithChange: Array<{
+export interface ResourceWithChange {
     resource: ResourceMetadata;
     change: ResourceChangeType;
-}>): SanitizationResult;
+    oldSku?: string;
+    oldRegion?: string;
+}
+/**
+ * Sanitize resources with individual change types
+ * @param resourcesWithChange - Array of resources with change type and optional old values
+ * @returns Sanitization result with safe resources and removed field log
+ */
+export declare function sanitizeResourcesWithChanges(resourcesWithChange: ResourceWithChange[]): SanitizationResult;
 /**
  * Validate that sanitized data contains no sensitive information
  * This function is used in tests to ensure the privacy contract is never violated

@@ -30541,6 +30541,7 @@ exports.filterFilesByExtension = filterFilesByExtension;
 exports.filterFilesByExtensionWithStatus = filterFilesByExtensionWithStatus;
 exports.listBicepFiles = listBicepFiles;
 exports.listBicepFilesWithStatus = listBicepFilesWithStatus;
+exports.getBaseFileContent = getBaseFileContent;
 const log = __importStar(__nccwpck_require__(6555));
 /**
  * Map GitHub file status to API change type
@@ -30665,6 +30666,37 @@ async function listBicepFilesWithStatus(octokit, context) {
         });
     }
     return bicepFiles;
+}
+/**
+ * Fetch the content of a file from the base branch (e.g., main) for comparison
+ * @param octokit - Authenticated Octokit instance
+ * @param context - PR context with owner, repo, and base branch
+ * @param filename - Path to the file in the repository
+ * @returns File content as string, or null if file doesn't exist in base branch
+ */
+async function getBaseFileContent(octokit, context, filename) {
+    try {
+        log.debug(`Fetching base branch content for ${filename} from ${context.baseBranch}`);
+        const response = await octokit.rest.repos.getContent({
+            owner: context.owner,
+            repo: context.repo,
+            path: filename,
+            ref: context.baseBranch,
+        });
+        if ('content' in response.data && typeof response.data.content === 'string') {
+            const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+            log.debug(`Successfully fetched base content for ${filename} (${content.length} bytes)`);
+            return content;
+        }
+        log.debug(`No content found for ${filename} in base branch (might be a directory)`);
+        return null;
+    }
+    catch (error) {
+        // File doesn't exist in base branch (new file) or other error
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        log.debug(`Could not fetch base content for ${filename}: ${errorMessage}`);
+        return null;
+    }
 }
 
 
@@ -30938,6 +30970,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ensureBicepCli = ensureBicepCli;
 exports.compileBicepFile = compileBicepFile;
 exports.compileBicepFiles = compileBicepFiles;
+exports.compileBicepContent = compileBicepContent;
 exports.formatCompilationErrors = formatCompilationErrors;
 const path = __importStar(__nccwpck_require__(6928));
 const fs = __importStar(__nccwpck_require__(9896));
@@ -31144,6 +31177,60 @@ async function compileBicepFiles(bicepCliPath, filePaths) {
     return results;
 }
 /**
+ * Compile Bicep content from a string by writing to a temp file
+ * Used for compiling base branch content fetched from GitHub API
+ * @param bicepCliPath - Path to the Bicep CLI binary
+ * @param content - Bicep file content as string
+ * @param originalFilePath - Original file path (used for naming and logging)
+ * @returns Compilation result with ARM template or error
+ */
+async function compileBicepContent(bicepCliPath, content, originalFilePath) {
+    const runnerTemp = process.env.RUNNER_TEMP;
+    if (!runnerTemp) {
+        return {
+            filePath: originalFilePath,
+            success: false,
+            error: 'RUNNER_TEMP environment variable not set',
+        };
+    }
+    // Create a unique temp file name based on original path
+    const sanitizedName = path.basename(originalFilePath).replace(/[^a-zA-Z0-9.-]/g, '_');
+    const tempFileName = `base_${Date.now()}_${sanitizedName}`;
+    const tempFilePath = path.join(runnerTemp, tempFileName);
+    try {
+        // Write content to temp file
+        fs.writeFileSync(tempFilePath, content, 'utf-8');
+        log.debug(`Wrote base content to temp file: ${tempFilePath}`);
+        // Compile the temp file
+        const result = await compileBicepFile(bicepCliPath, tempFilePath);
+        // Return result with original file path for clearer logging
+        return {
+            ...result,
+            filePath: originalFilePath,
+        };
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return {
+            filePath: originalFilePath,
+            success: false,
+            error: `Failed to compile base content: ${errorMessage}`,
+        };
+    }
+    finally {
+        // Clean up temp file
+        try {
+            if (fs.existsSync(tempFilePath)) {
+                fs.unlinkSync(tempFilePath);
+                log.debug(`Cleaned up temp file: ${tempFilePath}`);
+            }
+        }
+        catch {
+            // Ignore cleanup errors
+        }
+    }
+}
+/**
  * Format compilation errors for PR comment
  * @param results - Array of compilation results
  * @returns Markdown-formatted error message, or null if no errors
@@ -31184,6 +31271,247 @@ function formatCompilationErrors(results) {
         lines.push('');
     }
     return lines.join('\n');
+}
+
+
+/***/ }),
+
+/***/ 2104:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.diffResources = diffResources;
+const log = __importStar(__nccwpck_require__(6555));
+/**
+ * Generate a unique key for a resource to match between base and head
+ * Uses type + sku + region as a composite key since ARM compiled output
+ * may not preserve original Bicep symbolic names
+ * @param resource - Resource metadata
+ * @returns Unique key string
+ */
+function getResourceKey(resource) {
+    // For resources of the same type, we need a way to match them
+    // Since ARM templates don't preserve Bicep symbolic names,
+    // we use type as primary key. For multiple resources of same type,
+    // we include sku and region to differentiate them.
+    const parts = [resource.type];
+    // Only include sku/region in key if present, to avoid false negatives
+    // when comparing resources with missing optional fields
+    if (resource.sku) {
+        parts.push(resource.sku);
+    }
+    if (resource.region) {
+        parts.push(resource.region);
+    }
+    return parts.join('|');
+}
+/**
+ * Generate a simpler key using just the resource type
+ * Used for matching when the composite key doesn't find a match
+ * @param resource - Resource metadata
+ * @returns Type-only key string
+ */
+function getTypeOnlyKey(resource) {
+    return resource.type;
+}
+/**
+ * Check if two resources have meaningful changes
+ * @param base - Base version of resource
+ * @param head - Head version of resource
+ * @returns True if resources have changes worth reporting
+ */
+function hasChanges(base, head) {
+    // SKU change is always significant (affects cost)
+    if (base.sku !== head.sku) {
+        return true;
+    }
+    // Region change is significant (affects cost and compliance)
+    if (base.region !== head.region) {
+        return true;
+    }
+    // For now, we consider only SKU and region changes as significant
+    // Other property changes don't affect cost estimation
+    return false;
+}
+/**
+ * Diff resources between base branch and head branch versions
+ * Detects added, removed, and modified resources at the individual level
+ * @param baseResources - Resources from base branch (e.g., main)
+ * @param headResources - Resources from head branch (PR)
+ * @returns Array of resource diffs with change information
+ */
+function diffResources(baseResources, headResources) {
+    log.debug(`Diffing resources: ${baseResources.length} base, ${headResources.length} head`);
+    const diffs = [];
+    let added = 0;
+    let removed = 0;
+    let modified = 0;
+    let unchanged = 0;
+    // Create maps for both detailed and type-only matching
+    const baseMap = new Map();
+    const baseTypeMap = new Map();
+    for (const resource of baseResources) {
+        baseMap.set(getResourceKey(resource), resource);
+        const typeKey = getTypeOnlyKey(resource);
+        const existing = baseTypeMap.get(typeKey);
+        if (existing) {
+            existing.push(resource);
+        }
+        else {
+            baseTypeMap.set(typeKey, [resource]);
+        }
+    }
+    const headMap = new Map();
+    const headTypeMap = new Map();
+    for (const resource of headResources) {
+        headMap.set(getResourceKey(resource), resource);
+        const typeKey = getTypeOnlyKey(resource);
+        const existing = headTypeMap.get(typeKey);
+        if (existing) {
+            existing.push(resource);
+        }
+        else {
+            headTypeMap.set(typeKey, [resource]);
+        }
+    }
+    // Track which base resources have been matched
+    const matchedBaseKeys = new Set();
+    // Find added and modified resources (iterate over head)
+    for (const [key, headResource] of headMap) {
+        const baseResource = baseMap.get(key);
+        if (!baseResource) {
+            // Try to find by type only (handles SKU/region changes)
+            const typeKey = getTypeOnlyKey(headResource);
+            const baseByType = baseTypeMap.get(typeKey);
+            if (baseByType && baseByType.length > 0) {
+                // Found a resource of same type - check if it's a modification
+                // Find the first unmatched base resource of this type
+                const unmatchedBase = baseByType.find(b => !matchedBaseKeys.has(getResourceKey(b)));
+                if (unmatchedBase) {
+                    matchedBaseKeys.add(getResourceKey(unmatchedBase));
+                    if (hasChanges(unmatchedBase, headResource)) {
+                        // Resource was modified (SKU or region changed)
+                        diffs.push({
+                            type: headResource.type,
+                            kind: headResource.kind,
+                            change: 'modified',
+                            oldSku: unmatchedBase.sku,
+                            newSku: headResource.sku,
+                            oldRegion: unmatchedBase.region,
+                            newRegion: headResource.region,
+                            properties: headResource.properties,
+                        });
+                        modified++;
+                        log.debug(`Modified: ${headResource.type} (${unmatchedBase.sku} -> ${headResource.sku})`);
+                    }
+                    else {
+                        // No meaningful changes
+                        unchanged++;
+                    }
+                    continue;
+                }
+            }
+            // Resource exists in head but not in base = ADDED
+            diffs.push({
+                type: headResource.type,
+                kind: headResource.kind,
+                change: 'added',
+                newSku: headResource.sku,
+                newRegion: headResource.region,
+                properties: headResource.properties,
+            });
+            added++;
+            log.debug(`Added: ${headResource.type} (${headResource.sku || 'no sku'})`);
+        }
+        else {
+            // Exact key match found
+            matchedBaseKeys.add(key);
+            if (hasChanges(baseResource, headResource)) {
+                // Resource exists in both but has changes = MODIFIED
+                diffs.push({
+                    type: headResource.type,
+                    kind: headResource.kind,
+                    change: 'modified',
+                    oldSku: baseResource.sku,
+                    newSku: headResource.sku,
+                    oldRegion: baseResource.region,
+                    newRegion: headResource.region,
+                    properties: headResource.properties,
+                });
+                modified++;
+                log.debug(`Modified: ${headResource.type} (${baseResource.sku} -> ${headResource.sku})`);
+            }
+            else {
+                // No meaningful changes, skip
+                unchanged++;
+            }
+        }
+    }
+    // Find removed resources (in base but not in head)
+    for (const [key, baseResource] of baseMap) {
+        if (!matchedBaseKeys.has(key)) {
+            // Check if there's any head resource of the same type
+            const typeKey = getTypeOnlyKey(baseResource);
+            const headByType = headTypeMap.get(typeKey);
+            // If no resources of this type exist in head, it's definitely removed
+            if (!headByType || headByType.length === 0) {
+                diffs.push({
+                    type: baseResource.type,
+                    kind: baseResource.kind,
+                    change: 'removed',
+                    oldSku: baseResource.sku,
+                    oldRegion: baseResource.region,
+                });
+                removed++;
+                log.debug(`Removed: ${baseResource.type} (${baseResource.sku || 'no sku'})`);
+            }
+            // If there are head resources of same type but they didn't match,
+            // we've already handled them as modifications above
+        }
+    }
+    log.debug(`Diff complete: +${added} added, -${removed} removed, ~${modified} modified, ${unchanged} unchanged`);
+    return {
+        diffs,
+        added,
+        removed,
+        modified,
+        unchanged,
+    };
 }
 
 
@@ -31443,10 +31771,11 @@ function sanitizeProperties(properties, removedFields) {
  * Sanitize a single resource by removing all identifying information
  * @param resource - Resource metadata to sanitize
  * @param removedFields - Set to track removed field names
- * @param change - Change type for this resource (added/modified/removed)
+ * @param options - Optional change type and old values for modified resources
  * @returns Sanitized resource
  */
-function sanitizeSingleResource(resource, removedFields, change = 'modified') {
+function sanitizeSingleResource(resource, removedFields, options = {}) {
+    const { change = 'modified', oldSku, oldRegion } = options;
     const sanitized = {
         kind: resource.kind,
         count: 1, // Each resource counts as 1; aggregation happens at a higher level if needed
@@ -31459,6 +31788,13 @@ function sanitizeSingleResource(resource, removedFields, change = 'modified') {
     // Region is safe to include (e.g., "eastus")
     if (resource.region) {
         sanitized.region = resource.region;
+    }
+    // Include old SKU/region for modified resources (tracks upgrades/downgrades)
+    if (oldSku !== undefined) {
+        sanitized.oldSku = oldSku;
+    }
+    if (oldRegion !== undefined) {
+        sanitized.oldRegion = oldRegion;
     }
     // Keep type for internal use (optional in API)
     sanitized.type = resource.type;
@@ -31487,7 +31823,7 @@ function sanitizeResources(resources, change = 'modified') {
     const removedFields = new Set();
     const sanitizedResources = [];
     for (const resource of resources) {
-        const sanitized = sanitizeSingleResource(resource, removedFields, change);
+        const sanitized = sanitizeSingleResource(resource, removedFields, { change });
         sanitizedResources.push(sanitized);
     }
     const removedFieldsList = Array.from(removedFields).sort();
@@ -31503,15 +31839,19 @@ function sanitizeResources(resources, change = 'modified') {
 }
 /**
  * Sanitize resources with individual change types
- * @param resourcesWithChange - Array of [resource, changeType] tuples
+ * @param resourcesWithChange - Array of resources with change type and optional old values
  * @returns Sanitization result with safe resources and removed field log
  */
 function sanitizeResourcesWithChanges(resourcesWithChange) {
     log.debug(`Sanitizing ${resourcesWithChange.length} resource(s) with individual change types`);
     const removedFields = new Set();
     const sanitizedResources = [];
-    for (const { resource, change } of resourcesWithChange) {
-        const sanitized = sanitizeSingleResource(resource, removedFields, change);
+    for (const { resource, change, oldSku, oldRegion } of resourcesWithChange) {
+        const sanitized = sanitizeSingleResource(resource, removedFields, {
+            change,
+            oldSku,
+            oldRegion,
+        });
         sanitizedResources.push(sanitized);
     }
     const removedFieldsList = Array.from(removedFields).sort();
@@ -31676,19 +32016,78 @@ async function run() {
         log.info(`${successfulCompilations.length} file(s) compiled successfully, proceeding with analysis`);
         // Extract resource metadata from ARM templates with change tracking
         const { extractResourceMetadata } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(8476)));
+        const { diffResources } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(2104)));
+        const { compileBicepContent } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(9788)));
         const resourcesWithChange = [];
         for (const compilation of successfulCompilations) {
             try {
+                // Get the change type for this file
+                const fileChange = fileChangeMap.get(compilation.filePath) || 'modified';
                 // Convert ARM template object back to JSON string for extraction
                 const armJson = JSON.stringify(compilation.armTemplate);
-                const extractionResult = extractResourceMetadata(armJson);
-                // Get the change type for this file
-                const change = fileChangeMap.get(compilation.filePath) || 'modified';
-                // Add resources with their change type
-                for (const resource of extractionResult.resources) {
-                    resourcesWithChange.push({ resource, change });
+                const headExtraction = extractResourceMetadata(armJson);
+                if (fileChange === 'added') {
+                    // New file - all resources are added
+                    for (const resource of headExtraction.resources) {
+                        resourcesWithChange.push({ resource, change: 'added' });
+                    }
+                    log.debug(`Extracted ${headExtraction.resourceCount} added resource(s) from ${compilation.filePath}`);
                 }
-                log.debug(`Extracted ${extractionResult.resourceCount} resource(s) from ${compilation.filePath} (${change})`);
+                else if (fileChange === 'removed') {
+                    // Deleted file - all resources are removed
+                    for (const resource of headExtraction.resources) {
+                        resourcesWithChange.push({ resource, change: 'removed' });
+                    }
+                    log.debug(`Extracted ${headExtraction.resourceCount} removed resource(s) from ${compilation.filePath}`);
+                }
+                else {
+                    // Modified file - need to diff against base branch version
+                    log.info(`Performing resource-level diff for modified file: ${compilation.filePath}`);
+                    const baseContent = await (0, prFiles_1.getBaseFileContent)(octokit, prContext, compilation.filePath);
+                    if (baseContent) {
+                        // Compile base version
+                        const baseCompilation = await compileBicepContent(bicepCliPath, baseContent, compilation.filePath);
+                        if (baseCompilation.success && baseCompilation.armTemplate) {
+                            // Extract resources from base
+                            const baseArmJson = JSON.stringify(baseCompilation.armTemplate);
+                            const baseExtraction = extractResourceMetadata(baseArmJson);
+                            // Diff resources between base and head
+                            const diffResult = diffResources(baseExtraction.resources, headExtraction.resources);
+                            log.info(`Resource diff for ${compilation.filePath}: +${diffResult.added} added, -${diffResult.removed} removed, ~${diffResult.modified} modified, ${diffResult.unchanged} unchanged`);
+                            // Add diffed resources with appropriate change types
+                            for (const diff of diffResult.diffs) {
+                                // Create a ResourceMetadata from the diff
+                                const resource = {
+                                    type: diff.type,
+                                    kind: diff.kind,
+                                    sku: diff.newSku,
+                                    region: diff.newRegion,
+                                    properties: diff.properties,
+                                };
+                                resourcesWithChange.push({
+                                    resource,
+                                    change: diff.change === 'unchanged' ? 'modified' : diff.change,
+                                    oldSku: diff.oldSku,
+                                    oldRegion: diff.oldRegion,
+                                });
+                            }
+                        }
+                        else {
+                            // Base compilation failed - treat all head resources as modified (fallback)
+                            log.warning(`Could not compile base version of ${compilation.filePath}, falling back to file-level change`);
+                            for (const resource of headExtraction.resources) {
+                                resourcesWithChange.push({ resource, change: 'modified' });
+                            }
+                        }
+                    }
+                    else {
+                        // No base content (file is new despite being marked as modified)
+                        log.debug(`No base content for ${compilation.filePath}, treating as added`);
+                        for (const resource of headExtraction.resources) {
+                            resourcesWithChange.push({ resource, change: 'added' });
+                        }
+                    }
+                }
             }
             catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);

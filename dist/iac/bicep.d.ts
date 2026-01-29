@@ -28,6 +28,15 @@ export declare function compileBicepFile(bicepCliPath: string, filePath: string)
  */
 export declare function compileBicepFiles(bicepCliPath: string, filePaths: string[]): Promise<BicepCompilationResult[]>;
 /**
+ * Compile Bicep content from a string by writing to a temp file
+ * Used for compiling base branch content fetched from GitHub API
+ * @param bicepCliPath - Path to the Bicep CLI binary
+ * @param content - Bicep file content as string
+ * @param originalFilePath - Original file path (used for naming and logging)
+ * @returns Compilation result with ARM template or error
+ */
+export declare function compileBicepContent(bicepCliPath: string, content: string, originalFilePath: string): Promise<BicepCompilationResult>;
+/**
  * Format compilation errors for PR comment
  * @param results - Array of compilation results
  * @returns Markdown-formatted error message, or null if no errors

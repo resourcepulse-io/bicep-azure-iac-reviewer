@@ -261,6 +261,67 @@ export async function compileBicepFiles(
 }
 
 /**
+ * Compile Bicep content from a string by writing to a temp file
+ * Used for compiling base branch content fetched from GitHub API
+ * @param bicepCliPath - Path to the Bicep CLI binary
+ * @param content - Bicep file content as string
+ * @param originalFilePath - Original file path (used for naming and logging)
+ * @returns Compilation result with ARM template or error
+ */
+export async function compileBicepContent(
+  bicepCliPath: string,
+  content: string,
+  originalFilePath: string
+): Promise<BicepCompilationResult> {
+  const runnerTemp = process.env.RUNNER_TEMP;
+
+  if (!runnerTemp) {
+    return {
+      filePath: originalFilePath,
+      success: false,
+      error: 'RUNNER_TEMP environment variable not set',
+    };
+  }
+
+  // Create a unique temp file name based on original path
+  const sanitizedName = path.basename(originalFilePath).replace(/[^a-zA-Z0-9.-]/g, '_');
+  const tempFileName = `base_${Date.now()}_${sanitizedName}`;
+  const tempFilePath = path.join(runnerTemp, tempFileName);
+
+  try {
+    // Write content to temp file
+    fs.writeFileSync(tempFilePath, content, 'utf-8');
+    log.debug(`Wrote base content to temp file: ${tempFilePath}`);
+
+    // Compile the temp file
+    const result = await compileBicepFile(bicepCliPath, tempFilePath);
+
+    // Return result with original file path for clearer logging
+    return {
+      ...result,
+      filePath: originalFilePath,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return {
+      filePath: originalFilePath,
+      success: false,
+      error: `Failed to compile base content: ${errorMessage}`,
+    };
+  } finally {
+    // Clean up temp file
+    try {
+      if (fs.existsSync(tempFilePath)) {
+        fs.unlinkSync(tempFilePath);
+        log.debug(`Cleaned up temp file: ${tempFilePath}`);
+      }
+    } catch {
+      // Ignore cleanup errors
+    }
+  }
+}
+
+/**
  * Format compilation errors for PR comment
  * @param results - Array of compilation results
  * @returns Markdown-formatted error message, or null if no errors
