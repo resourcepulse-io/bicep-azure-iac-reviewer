@@ -313,9 +313,10 @@ describe('analyzeResources', () => {
         callContext: mockCallContext,
       });
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
       expect(result.source).toBe('local');
       expect(result.markdown).toContain('Azure Resource Analysis');
+      expect(result.error).toBeDefined();
 
       // Should log warning
       expect(log.warning).toHaveBeenCalledWith(
@@ -336,8 +337,9 @@ describe('analyzeResources', () => {
         callContext: mockCallContext,
       });
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
       expect(result.source).toBe('local');
+      expect(result.error).toBeDefined();
 
       // Should log warning
       expect(log.warning).toHaveBeenCalledWith(
@@ -357,8 +359,9 @@ describe('analyzeResources', () => {
         callContext: mockCallContext,
       });
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
       expect(result.source).toBe('local');
+      expect(result.error).toBeDefined();
     });
   });
 
@@ -375,8 +378,9 @@ describe('analyzeResources', () => {
         callContext: mockCallContext,
       });
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
       expect(result.source).toBe('local');
+      expect(result.error).toContain('timed out');
 
       // Should log timeout warning
       expect(log.warning).toHaveBeenCalledWith(
@@ -394,8 +398,9 @@ describe('analyzeResources', () => {
         callContext: mockCallContext,
       });
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
       expect(result.source).toBe('local');
+      expect(result.error).toContain('Network error');
 
       // Should log network error
       expect(log.warning).toHaveBeenCalledWith(
@@ -411,8 +416,9 @@ describe('analyzeResources', () => {
         callContext: mockCallContext,
       });
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
       expect(result.source).toBe('local');
+      expect(result.error).toBeDefined();
 
       // Should log generic warning
       expect(log.warning).toHaveBeenCalledWith('Unknown error calling backend');

@@ -6,6 +6,7 @@ export interface AnalysisResult {
     success: boolean;
     source: 'backend' | 'local';
     markdown: string;
+    error?: string;
 }
 /**
  * Repository metadata included in backend request

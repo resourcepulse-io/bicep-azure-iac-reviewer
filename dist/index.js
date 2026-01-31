@@ -30018,7 +30018,7 @@ function toApiResource(resource) {
  * @param apiKey - Backend authentication token
  * @param backendUrl - Backend API endpoint
  * @param callContext - Full context including repo, PR, run, and git context
- * @returns Backend response or null if failed
+ * @returns Backend call result with response and error details
  */
 async function callBackend(resources, apiKey, backendUrl, callContext) {
     // Validate no sensitive data before sending
@@ -30059,39 +30059,57 @@ async function callBackend(resources, apiKey, backendUrl, callContext) {
         // Handle non-OK responses
         if (!response.ok) {
             log.warning(`Backend returned status ${response.status}: ${response.statusText}`);
-            // Try to parse error message
+            let errorDetail = `HTTP ${response.status}`;
+            if (response.status === 401 || response.status === 403) {
+                errorDetail = 'Authentication failed — check that your `api_key` is valid and not expired.';
+            }
+            else if (response.status === 402) {
+                errorDetail = 'Subscription issue — your plan may have expired or reached its limit.';
+            }
+            else if (response.status >= 500) {
+                errorDetail = `Server error (HTTP ${response.status}) — the ResourcePulse backend is temporarily unavailable.`;
+            }
+            // Try to parse error message from response body
             try {
                 const errorData = (await response.json());
-                log.warning(`Backend error: ${errorData.error || errorData.message}`);
+                const apiMessage = errorData.error || errorData.message;
+                if (apiMessage) {
+                    log.warning(`Backend error: ${apiMessage}`);
+                    errorDetail = apiMessage;
+                }
             }
             catch {
                 // Ignore JSON parse errors
             }
-            return null;
+            return { response: null, error: errorDetail, statusCode: response.status };
         }
         // Parse successful response
         const data = (await response.json());
         log.debug('Backend response received successfully');
-        return data;
+        return { response: data };
     }
     catch (error) {
+        let errorDetail = 'Unknown error connecting to backend.';
         if (error instanceof Error) {
             if (error.name === 'AbortError') {
                 log.warning(`Backend request timed out after ${DEFAULT_TIMEOUT_MS}ms`);
+                errorDetail = `Request timed out after ${DEFAULT_TIMEOUT_MS / 1000}s — the backend may be overloaded.`;
             }
             else if (error.message.includes('fetch failed') ||
                 error.message.includes('ENOTFOUND') ||
                 error.message.includes('ECONNREFUSED')) {
                 log.warning(`Network error calling backend: ${error.message}`);
+                errorDetail = 'Network error — could not reach the ResourcePulse backend. Check `server_address` or try again later.';
             }
             else {
                 log.warning(`Error calling backend: ${error.message}`);
+                errorDetail = `Unexpected error: ${error.message}`;
             }
         }
         else {
             log.warning('Unknown error calling backend');
         }
-        return null;
+        return { response: null, error: errorDetail };
     }
 }
 /**
@@ -30129,23 +30147,25 @@ async function analyzeResources(resources, options = {}) {
     }
     // Try to call backend
     log.info(`Attempting backend analysis at ${backendUrl}`);
-    const backendResponse = await callBackend(resources, apiKey, backendUrl, callContext);
+    const backendResult = await callBackend(resources, apiKey, backendUrl, callContext);
     // Check if backend response indicates success
-    if (backendResponse) {
+    if (backendResult.response) {
         // Respect the success flag from the API response
-        if (backendResponse.success === false) {
+        if (backendResult.response.success === false) {
             log.warning('Backend returned success=false - falling back to local summary');
+            const errorMsg = backendResult.response.error || backendResult.response.message || 'Backend reported failure.';
             const markdown = generateLocalFallback(resources);
             return {
                 success: false,
                 source: 'local',
                 markdown,
+                error: errorMsg,
             };
         }
         // Backend succeeded - return its response
-        if (backendResponse.markdown || backendResponse.message) {
+        if (backendResult.response.markdown || backendResult.response.message) {
             log.info('Backend analysis completed successfully');
-            const markdown = backendResponse.markdown || backendResponse.message || '';
+            const markdown = backendResult.response.markdown || backendResult.response.message || '';
             return {
                 success: true,
                 source: 'backend',
@@ -30153,13 +30173,14 @@ async function analyzeResources(resources, options = {}) {
             };
         }
     }
-    // Backend failed - use local fallback
+    // Backend failed - use local fallback with error info
     log.warning('Backend analysis failed - falling back to local summary');
     const markdown = generateLocalFallback(resources);
     return {
-        success: true,
+        success: false,
         source: 'local',
         markdown,
+        error: backendResult.error || 'Backend returned an empty response.',
     };
 }
 
@@ -30198,6 +30219,23 @@ function generateFooter() {
     return `\n---\n<sub>🔍 Analyzed by [ResourcePulse](https://resourcepulse.io) • v${version}</sub>`;
 }
 /**
+ * Format an error banner for display in PR comments
+ * @param result - Analysis result with error details
+ * @returns Markdown error banner or empty string
+ */
+function formatErrorBanner(result) {
+    if (!result.error || result.success) {
+        return '';
+    }
+    const lines = [];
+    lines.push('> [!WARNING]');
+    lines.push(`> **Backend analysis failed:** ${result.error}`);
+    lines.push('>');
+    lines.push('> Showing local summary instead. Check your action configuration if this persists.');
+    lines.push('');
+    return lines.join('\n');
+}
+/**
  * Format analysis result as PR comment markdown
  * Adds comment marker and footer to the analysis markdown
  * @param result - Analysis result from backend or local fallback
@@ -30207,6 +30245,11 @@ function formatPRComment(result) {
     const lines = [];
     // Add marker comment for update-in-place functionality
     lines.push(exports.COMMENT_MARKER);
+    // Add error banner if backend failed
+    const errorBanner = formatErrorBanner(result);
+    if (errorBanner) {
+        lines.push(errorBanner);
+    }
     // Add the analysis content (already formatted as markdown)
     lines.push(result.markdown);
     // Add footer with attribution

@@ -25,6 +25,26 @@ function generateFooter(): string {
 }
 
 /**
+ * Format an error banner for display in PR comments
+ * @param result - Analysis result with error details
+ * @returns Markdown error banner or empty string
+ */
+function formatErrorBanner(result: AnalysisResult): string {
+  if (!result.error || result.success) {
+    return '';
+  }
+
+  const lines: string[] = [];
+  lines.push('> [!WARNING]');
+  lines.push(`> **Backend analysis failed:** ${result.error}`);
+  lines.push('>');
+  lines.push('> Showing local summary instead. Check your action configuration if this persists.');
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+/**
  * Format analysis result as PR comment markdown
  * Adds comment marker and footer to the analysis markdown
  * @param result - Analysis result from backend or local fallback
@@ -35,6 +55,12 @@ export function formatPRComment(result: AnalysisResult): string {
 
   // Add marker comment for update-in-place functionality
   lines.push(COMMENT_MARKER);
+
+  // Add error banner if backend failed
+  const errorBanner = formatErrorBanner(result);
+  if (errorBanner) {
+    lines.push(errorBanner);
+  }
 
   // Add the analysis content (already formatted as markdown)
   lines.push(result.markdown);

@@ -13,6 +13,7 @@ export interface AnalysisResult {
   success: boolean;
   source: 'backend' | 'local';
   markdown: string; // Pre-formatted message ready for PR comment
+  error?: string; // Error message when backend fails
 }
 
 /**
@@ -211,19 +212,28 @@ function toApiResource(resource: SanitizedResource): ApiResource {
 }
 
 /**
+ * Result from a backend call attempt, including error details
+ */
+interface BackendCallResult {
+  response: BackendResponse | null;
+  error?: string;
+  statusCode?: number;
+}
+
+/**
  * Call backend API with timeout and error handling
  * @param resources - Sanitized resources to analyze
  * @param apiKey - Backend authentication token
  * @param backendUrl - Backend API endpoint
  * @param callContext - Full context including repo, PR, run, and git context
- * @returns Backend response or null if failed
+ * @returns Backend call result with response and error details
  */
 async function callBackend(
   resources: SanitizedResource[],
   apiKey: string,
   backendUrl: string,
   callContext: BackendCallContext
-): Promise<BackendResponse | null> {
+): Promise<BackendCallResult> {
   // Validate no sensitive data before sending
   const validation = validateNoSensitiveData(resources);
   if (!validation.valid) {
@@ -274,42 +284,61 @@ async function callBackend(
         `Backend returned status ${response.status}: ${response.statusText}`
       );
 
-      // Try to parse error message
+      let errorDetail = `HTTP ${response.status}`;
+
+      if (response.status === 401 || response.status === 403) {
+        errorDetail = 'Authentication failed — check that your `api_key` is valid and not expired.';
+      } else if (response.status === 402) {
+        errorDetail = 'Subscription issue — your plan may have expired or reached its limit.';
+      } else if (response.status >= 500) {
+        errorDetail = `Server error (HTTP ${response.status}) — the ResourcePulse backend is temporarily unavailable.`;
+      }
+
+      // Try to parse error message from response body
       try {
         const errorData = (await response.json()) as BackendResponse;
-        log.warning(`Backend error: ${errorData.error || errorData.message}`);
+        const apiMessage = errorData.error || errorData.message;
+        if (apiMessage) {
+          log.warning(`Backend error: ${apiMessage}`);
+          errorDetail = apiMessage;
+        }
       } catch {
         // Ignore JSON parse errors
       }
 
-      return null;
+      return { response: null, error: errorDetail, statusCode: response.status };
     }
 
     // Parse successful response
     const data = (await response.json()) as BackendResponse;
     log.debug('Backend response received successfully');
 
-    return data;
+    return { response: data };
   } catch (error: unknown) {
+    let errorDetail = 'Unknown error connecting to backend.';
+
     if (error instanceof Error) {
       if (error.name === 'AbortError') {
         log.warning(
           `Backend request timed out after ${DEFAULT_TIMEOUT_MS}ms`
         );
+        errorDetail = `Request timed out after ${DEFAULT_TIMEOUT_MS / 1000}s — the backend may be overloaded.`;
       } else if (
         error.message.includes('fetch failed') ||
         error.message.includes('ENOTFOUND') ||
         error.message.includes('ECONNREFUSED')
       ) {
         log.warning(`Network error calling backend: ${error.message}`);
+        errorDetail = 'Network error — could not reach the ResourcePulse backend. Check `server_address` or try again later.';
       } else {
         log.warning(`Error calling backend: ${error.message}`);
+        errorDetail = `Unexpected error: ${error.message}`;
       }
     } else {
       log.warning('Unknown error calling backend');
     }
 
-    return null;
+    return { response: null, error: errorDetail };
   }
 }
 
@@ -365,7 +394,7 @@ export async function analyzeResources(
   // Try to call backend
   log.info(`Attempting backend analysis at ${backendUrl}`);
 
-  const backendResponse = await callBackend(
+  const backendResult = await callBackend(
     resources,
     apiKey,
     backendUrl,
@@ -373,22 +402,24 @@ export async function analyzeResources(
   );
 
   // Check if backend response indicates success
-  if (backendResponse) {
+  if (backendResult.response) {
     // Respect the success flag from the API response
-    if (backendResponse.success === false) {
+    if (backendResult.response.success === false) {
       log.warning('Backend returned success=false - falling back to local summary');
+      const errorMsg = backendResult.response.error || backendResult.response.message || 'Backend reported failure.';
       const markdown = generateLocalFallback(resources);
       return {
         success: false,
         source: 'local',
         markdown,
+        error: errorMsg,
       };
     }
 
     // Backend succeeded - return its response
-    if (backendResponse.markdown || backendResponse.message) {
+    if (backendResult.response.markdown || backendResult.response.message) {
       log.info('Backend analysis completed successfully');
-      const markdown = backendResponse.markdown || backendResponse.message || '';
+      const markdown = backendResult.response.markdown || backendResult.response.message || '';
       return {
         success: true,
         source: 'backend',
@@ -397,12 +428,13 @@ export async function analyzeResources(
     }
   }
 
-  // Backend failed - use local fallback
+  // Backend failed - use local fallback with error info
   log.warning('Backend analysis failed - falling back to local summary');
   const markdown = generateLocalFallback(resources);
   return {
-    success: true,
+    success: false,
     source: 'local',
     markdown,
+    error: backendResult.error || 'Backend returned an empty response.',
   };
 }

@@ -215,15 +215,17 @@ storage:
         callContext: mockCallContext,
       });
 
-      // Should fall back to local
-      expect(analysisResult.success).toBe(true);
+      // Should fall back to local with error
+      expect(analysisResult.success).toBe(false);
       expect(analysisResult.source).toBe('local');
+      expect(analysisResult.error).toBeDefined();
 
       // Step 2: Format as PR comment
       const prComment = formatPRComment(analysisResult);
 
-      // Step 3: Verify fallback comment structure
+      // Step 3: Verify fallback comment structure with error banner
       expect(prComment).toContain(COMMENT_MARKER);
+      expect(prComment).toContain('Backend analysis failed');
       expect(prComment).toContain('Azure Resource Analysis');
       expect(prComment).toContain('Want detailed cost estimates');
       expect(prComment).toContain('ResourcePulse');
