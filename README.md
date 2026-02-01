@@ -1,4 +1,4 @@
-#Bicep Azure IaC Reviewer
+# Bicep Azure IaC Reviewer
 
 A GitHub Action that analyzes Azure Bicep files in pull requests, providing cost insights and best practice recommendations while maintaining strict privacy standards.
 
