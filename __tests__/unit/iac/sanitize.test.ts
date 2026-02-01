@@ -58,7 +58,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Web/sites',
-          kind: 'app_service',
+          kind: 'appservice',
           properties: {
             resourceId:
               '/subscriptions/xyz/resourceGroups/mygroup/providers/Microsoft.Web/sites/myapp',
@@ -116,7 +116,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Sql/servers/databases',
-          kind: 'sql_db',
+          kind: 'sqldb',
           properties: {
             connectionString:
               'Server=tcp:myserver.database.windows.net;Database=mydb;User ID=admin;Password=P@ssw0rd;',
@@ -416,7 +416,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Web/serverfarms',
-          kind: 'app_service_plan',
+          kind: 'appservice',
           properties: {
             capacity: 2,
             tier: 'Standard',
@@ -767,7 +767,7 @@ describe('sanitizeResources', () => {
         },
         {
           type: 'Microsoft.Web/sites',
-          kind: 'app_service',
+          kind: 'appservice',
           properties: {
             enabled: true,
           },

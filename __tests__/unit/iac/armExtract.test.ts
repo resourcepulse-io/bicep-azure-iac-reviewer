@@ -69,9 +69,9 @@ describe('ARM Extract Module', () => {
 
       expect(result.resourceCount).toBe(8);
       expect(result.resources[0].kind).toBe('vm');
-      expect(result.resources[1].kind).toBe('app_service_plan');
-      expect(result.resources[2].kind).toBe('app_service');
-      expect(result.resources[3].kind).toBe('sql_db');
+      expect(result.resources[1].kind).toBe('appservice');
+      expect(result.resources[2].kind).toBe('appservice');
+      expect(result.resources[3].kind).toBe('sqldb');
       expect(result.resources[4].kind).toBe('storage');
       expect(result.resources[5].kind).toBe('vnet');
       expect(result.resources[6].kind).toBe('nsg');

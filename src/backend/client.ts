@@ -174,9 +174,8 @@ function generateLocalFallback(resources: SanitizedResource[]): string {
 function formatKindLabel(kind: string): string {
   const labels: Record<string, string> = {
     vm: 'Virtual Machines',
-    app_service: 'App Services',
-    app_service_plan: 'App Service Plans',
-    sql_db: 'SQL Databases',
+    appservice: 'App Services',
+    sqldb: 'SQL Databases',
     storage: 'Storage Accounts',
     vnet: 'Virtual Networks',
     nsg: 'Network Security Groups',

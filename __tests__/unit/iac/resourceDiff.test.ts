@@ -130,10 +130,10 @@ describe('Resource Diff Module', () => {
     describe('Modified Resources (SKU Changes)', () => {
       it('should detect SKU upgrade', () => {
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Web/serverfarms', 'app_service_plan', 'B1', 'eastus'),
+          createResource('Microsoft.Web/serverfarms', 'appservice', 'B1', 'eastus'),
         ];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Web/serverfarms', 'app_service_plan', 'P1v3', 'eastus'),
+          createResource('Microsoft.Web/serverfarms', 'appservice', 'P1v3', 'eastus'),
         ];
 
         const result = diffResources(baseResources, headResources);
@@ -248,12 +248,12 @@ describe('Resource Diff Module', () => {
       it('should handle mixed changes (add, remove, modify)', () => {
         const baseResources: ResourceMetadata[] = [
           createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
-          createResource('Microsoft.Web/serverfarms', 'app_service_plan', 'B1', 'eastus'),
-          createResource('Microsoft.Sql/servers/databases', 'sql_db', 'Basic', 'eastus'),
+          createResource('Microsoft.Web/serverfarms', 'appservice', 'B1', 'eastus'),
+          createResource('Microsoft.Sql/servers/databases', 'sqldb', 'Basic', 'eastus'),
         ];
         const headResources: ResourceMetadata[] = [
           createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_GRS', 'eastus'), // modified (SKU)
-          createResource('Microsoft.Web/serverfarms', 'app_service_plan', 'B1', 'eastus'), // unchanged
+          createResource('Microsoft.Web/serverfarms', 'appservice', 'B1', 'eastus'), // unchanged
           createResource('Microsoft.Compute/virtualMachines', 'vm', 'Standard_D2s_v3', 'westus'), // added
           // sql_db removed
         ];
@@ -394,12 +394,12 @@ describe('Resource Diff Module', () => {
     it('should have counts that sum correctly', () => {
       const baseResources: ResourceMetadata[] = [
         createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
-        createResource('Microsoft.Web/serverfarms', 'app_service_plan', 'B1', 'eastus'),
-        createResource('Microsoft.Sql/servers/databases', 'sql_db', 'Basic', 'eastus'),
+        createResource('Microsoft.Web/serverfarms', 'appservice', 'B1', 'eastus'),
+        createResource('Microsoft.Sql/servers/databases', 'sqldb', 'Basic', 'eastus'),
       ];
       const headResources: ResourceMetadata[] = [
         createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_GRS', 'eastus'),
-        createResource('Microsoft.Web/serverfarms', 'app_service_plan', 'B1', 'eastus'),
+        createResource('Microsoft.Web/serverfarms', 'appservice', 'B1', 'eastus'),
         createResource('Microsoft.Compute/virtualMachines', 'vm', 'Standard_D2s_v3', 'westus'),
       ];
 

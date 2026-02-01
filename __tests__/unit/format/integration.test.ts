@@ -257,8 +257,8 @@ storage:
         { kind: 'vm', count: 1, change: 'added', type: 'Microsoft.Compute/virtualMachines' },
         { kind: 'storage', count: 1, change: 'added', type: 'Microsoft.Storage/storageAccounts' },
         { kind: 'storage', count: 1, change: 'modified', type: 'Microsoft.Storage/storageAccounts' },
-        { kind: 'app_service_plan', count: 1, change: 'added', type: 'Microsoft.Web/serverfarms' },
-        { kind: 'sql_db', count: 1, change: 'added', type: 'Microsoft.Sql/servers/databases' },
+        { kind: 'appservice', count: 1, change: 'added', type: 'Microsoft.Web/serverfarms' },
+        { kind: 'sqldb', count: 1, change: 'added', type: 'Microsoft.Sql/servers/databases' },
       ];
 
       const analysisResult = await analyzeResources(resources);
@@ -267,7 +267,7 @@ storage:
       expect(prComment).toContain('Detected **7** resource(s)');
       expect(prComment).toContain('Virtual Machines**: 3');
       expect(prComment).toContain('Storage Accounts**: 2');
-      expect(prComment).toContain('App Service Plans**: 1');
+      expect(prComment).toContain('App Services**: 1');
       expect(prComment).toContain('SQL Databases**: 1');
     });
 

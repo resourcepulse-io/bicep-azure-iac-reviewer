@@ -26,9 +26,9 @@ export interface ExtractionResult {
  */
 const TYPE_TO_KIND_MAP: Record<string, string> = {
   'Microsoft.Compute/virtualMachines': 'vm',
-  'Microsoft.Web/serverfarms': 'app_service_plan',
-  'Microsoft.Web/sites': 'app_service',
-  'Microsoft.Sql/servers/databases': 'sql_db',
+  'Microsoft.Web/serverfarms': 'appservice',
+  'Microsoft.Web/sites': 'appservice',
+  'Microsoft.Sql/servers/databases': 'sqldb',
   'Microsoft.Storage/storageAccounts': 'storage',
   'Microsoft.Network/virtualNetworks': 'vnet',
   'Microsoft.Network/networkSecurityGroups': 'nsg',

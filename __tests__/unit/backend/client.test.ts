@@ -35,7 +35,7 @@ describe('analyzeResources', () => {
       },
     },
     {
-      kind: 'app_service',
+      kind: 'appservice',
       region: 'eastus',
       count: 1,
       change: 'modified',
@@ -110,15 +110,15 @@ describe('analyzeResources', () => {
         { kind: 'vm', count: 1, change: 'added', type: 'Microsoft.Compute/virtualMachines' },
         { kind: 'vm', count: 1, change: 'modified', type: 'Microsoft.Compute/virtualMachines' },
         { kind: 'storage', count: 1, change: 'added', type: 'Microsoft.Storage/storageAccounts' },
-        { kind: 'app_service_plan', count: 1, change: 'added', type: 'Microsoft.Web/serverfarms' },
-        { kind: 'app_service_plan', count: 1, change: 'modified', type: 'Microsoft.Web/serverfarms' },
-        { kind: 'app_service_plan', count: 1, change: 'added', type: 'Microsoft.Web/serverfarms' },
+        { kind: 'appservice', count: 1, change: 'added', type: 'Microsoft.Web/serverfarms' },
+        { kind: 'appservice', count: 1, change: 'modified', type: 'Microsoft.Web/serverfarms' },
+        { kind: 'appservice', count: 1, change: 'added', type: 'Microsoft.Web/serverfarms' },
       ];
 
       const result = await analyzeResources(resources);
 
       expect(result.markdown).toContain('Detected **6** resource(s)');
-      expect(result.markdown).toContain('App Service Plans**: 3');
+      expect(result.markdown).toContain('App Services**: 3');
       expect(result.markdown).toContain('Virtual Machines**: 2');
       expect(result.markdown).toContain('Storage Accounts**: 1');
     });
