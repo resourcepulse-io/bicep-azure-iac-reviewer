@@ -29988,9 +29988,8 @@ function generateLocalFallback(resources) {
 function formatKindLabel(kind) {
     const labels = {
         vm: 'Virtual Machines',
-        app_service: 'App Services',
-        app_service_plan: 'App Service Plans',
-        sql_db: 'SQL Databases',
+        appservice: 'App Services',
+        sqldb: 'SQL Databases',
         storage: 'Storage Accounts',
         vnet: 'Virtual Networks',
         nsg: 'Network Security Groups',
@@ -30791,9 +30790,9 @@ const log = __importStar(__nccwpck_require__(6555));
  */
 const TYPE_TO_KIND_MAP = {
     'Microsoft.Compute/virtualMachines': 'vm',
-    'Microsoft.Web/serverfarms': 'app_service_plan',
-    'Microsoft.Web/sites': 'app_service',
-    'Microsoft.Sql/servers/databases': 'sql_db',
+    'Microsoft.Web/serverfarms': 'appservice',
+    'Microsoft.Web/sites': 'appservice',
+    'Microsoft.Sql/servers/databases': 'sqldb',
     'Microsoft.Storage/storageAccounts': 'storage',
     'Microsoft.Network/virtualNetworks': 'vnet',
     'Microsoft.Network/networkSecurityGroups': 'nsg',
