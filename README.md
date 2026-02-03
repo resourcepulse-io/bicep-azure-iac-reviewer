@@ -84,6 +84,9 @@ jobs:
           # Optional: Provide API key for enhanced analysis
           api_key: ${{ secrets.AZURE_IAC_REVIEWER_API_KEY }}
 
+          # Optional: Path to .bicepparam file for region resolution
+          param_file: infra/params/dev.bicepparam
+
           # Optional: Comment mode (update existing or create new)
           # comment_mode: 'update'
 ```
@@ -93,6 +96,7 @@ jobs:
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `api_key` | No | _(empty)_ | API key for the Azure IaC Reviewer backend service. If not provided, the action uses local analysis. |
+| `param_file` | No | _(empty)_ | Path to a `.bicepparam` file for region resolution. Enables precise region analysis by extracting parameter values from the file. |
 | `server_address` | No | `https://api.resourcepulse.io` | Backend API endpoint URL. |
 | `comment_mode` | No | `update` | Comment behavior: `update` to update existing PR comment, `new` to create a new comment each time. |
 
@@ -122,12 +126,23 @@ jobs:
 
 The action will analyze Bicep files and provide basic insights without connecting to the backend service.
 
+### With Region Resolution
+
+```yaml
+- uses: resourcepulse-io/azure-iac-reviewer@v1
+  with:
+    param_file: infra/params/dev.bicepparam
+```
+
+Provide a `.bicepparam` file path for precise region analysis. The action parses parameter values and resolves resource locations from the compiled ARM template.
+
 ### With API Key (Enhanced Analysis)
 
 ```yaml
 - uses: resourcepulse-io/azure-iac-reviewer@v1
   with:
     api_key: ${{ secrets.AZURE_IAC_REVIEWER_API_KEY }}
+    param_file: infra/params/dev.bicepparam
 ```
 
 Store your API key as a repository secret and reference it securely. Enhanced analysis provides:

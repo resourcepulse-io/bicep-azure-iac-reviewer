@@ -1,7 +1,11 @@
 import * as core from '@actions/core';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as log from './utils/log';
 import { initializeGitHub } from './github/context';
 import { listBicepFilesWithStatus, BicepFileWithStatus, getBaseFileContent } from './github/prFiles';
+import { parseBicepParamFile } from './iac/bicepParams';
+import type { BicepParamValue } from './iac/bicepParams';
 import type { ResourceMetadata } from './iac/armExtract';
 import type { BackendCallContext } from './backend/client';
 import type { ResourceWithChange } from './iac/sanitize';
@@ -75,6 +79,48 @@ async function run(): Promise<void> {
     const { diffResources } = await import('./iac/resourceDiff');
     const { compileBicepContent } = await import('./iac/bicep');
     const resourcesWithChange: ResourceWithChange[] = [];
+    const paramFileInput = core.getInput('param_file').trim();
+    let paramFileValues: Record<string, BicepParamValue> | undefined;
+    const enableRegionResolution = paramFileInput.length > 0;
+    const resolvedRegions = new Set<string>();
+    const unresolvedLocations = new Set<string>();
+    const paramFileUsed = enableRegionResolution ? paramFileInput : undefined;
+
+    if (enableRegionResolution) {
+      const workspaceRoot = process.env.GITHUB_WORKSPACE || process.cwd();
+      const resolvedParamFilePath = path.resolve(workspaceRoot, paramFileInput);
+      const workspaceResolved = path.resolve(workspaceRoot);
+      if (
+        resolvedParamFilePath !== workspaceResolved &&
+        !resolvedParamFilePath.startsWith(`${workspaceResolved}${path.sep}`)
+      ) {
+        throw new Error(
+          `Invalid param_file path: ${paramFileInput} (must be within the repository)`
+        );
+      }
+      if (!fs.existsSync(resolvedParamFilePath)) {
+        throw new Error(
+          `param_file not found: ${paramFileInput} (resolved to ${resolvedParamFilePath})`
+        );
+      }
+      if (!fs.statSync(resolvedParamFilePath).isFile()) {
+        throw new Error(
+          `param_file is not a file: ${paramFileInput} (resolved to ${resolvedParamFilePath})`
+        );
+      }
+      log.info(`Using param file: ${paramFileInput}`);
+      const paramFileContents = fs.readFileSync(resolvedParamFilePath, 'utf8');
+      const parseResult = parseBicepParamFile(paramFileContents);
+      if (parseResult.errors.length > 0) {
+        log.warning(`Param file parse issues: ${parseResult.errors.join('; ')}`);
+      }
+      paramFileValues = parseResult.params;
+      log.info(
+        `Parsed ${Object.keys(parseResult.params).length} param value(s) from ${paramFileInput}`
+      );
+    } else {
+      log.info('No param_file provided; skipping region resolution.');
+    }
 
     for (const compilation of successfulCompilations) {
       try {
@@ -83,7 +129,16 @@ async function run(): Promise<void> {
 
         // Convert ARM template object back to JSON string for extraction
         const armJson = JSON.stringify(compilation.armTemplate);
-        const headExtraction = extractResourceMetadata(armJson);
+        const headExtraction = extractResourceMetadata(armJson, {
+          paramValues: paramFileValues,
+          enableRegionResolution,
+        });
+        for (const region of headExtraction.resolvedRegions) {
+          resolvedRegions.add(region);
+        }
+        for (const token of headExtraction.unresolvedLocations) {
+          unresolvedLocations.add(token);
+        }
 
         if (fileChange === 'added') {
           // New file - all resources are added
@@ -118,7 +173,10 @@ async function run(): Promise<void> {
             if (baseCompilation.success && baseCompilation.armTemplate) {
               // Extract resources from base
               const baseArmJson = JSON.stringify(baseCompilation.armTemplate);
-              const baseExtraction = extractResourceMetadata(baseArmJson);
+              const baseExtraction = extractResourceMetadata(baseArmJson, {
+                paramValues: paramFileValues,
+                enableRegionResolution,
+              });
 
               // Diff resources between base and head
               const diffResult = diffResources(baseExtraction.resources, headExtraction.resources);
@@ -211,6 +269,9 @@ async function run(): Promise<void> {
         sha: prContext.sha,
         ref: prContext.ref,
       },
+      resolvedRegions: Array.from(resolvedRegions),
+      unresolvedLocations: Array.from(unresolvedLocations),
+      paramFileUsed,
     };
 
     // Analyze resources (backend or local fallback)
@@ -224,7 +285,27 @@ async function run(): Promise<void> {
 
     // Format as PR comment
     const { formatPRComment } = await import('./format/markdown');
-    const commentBody = formatPRComment(analysisResult);
+    const resolvedRegionsList = Array.from(resolvedRegions);
+    const unresolvedLocationsList = Array.from(unresolvedLocations);
+    let regionSummary = '';
+    if (!enableRegionResolution) {
+      regionSummary = 'Regions: unknown (no param_file provided)';
+    } else if (resolvedRegionsList.length > 0) {
+      regionSummary = `Regions: ${resolvedRegionsList.join(', ')}`;
+    } else if (unresolvedLocationsList.length > 0) {
+      regionSummary = 'Regions: unknown (unresolved locations)';
+    } else {
+      regionSummary = 'Regions: unknown (no location fields detected)';
+    }
+
+    const regionLines = ['**Region resolution**', regionSummary];
+    regionLines.push(`Param file: ${paramFileUsed ?? 'none'}`);
+    if (unresolvedLocationsList.length > 0) {
+      regionLines.push(`Unresolved: ${unresolvedLocationsList.join(', ')}`);
+    }
+
+    const markdownWithRegions = `${regionLines.join('\n')}\n\n${analysisResult.markdown}`;
+    const commentBody = formatPRComment({ ...analysisResult, markdown: markdownWithRegions });
 
     // Post or update PR comment
     const { createOrUpdateComment } = await import('./github/comments');

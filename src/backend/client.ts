@@ -71,6 +71,9 @@ interface AnalysisRequest {
   run: RunInfo;
   context: ContextInfo;
   resources: ApiResource[];
+  resolvedRegions?: string[];
+  unresolvedLocations?: string[];
+  paramFileUsed?: string;
 }
 
 /**
@@ -193,6 +196,9 @@ export interface BackendCallContext {
   pr: PRInfo;
   run: RunInfo;
   context: ContextInfo;
+  resolvedRegions?: string[];
+  unresolvedLocations?: string[];
+  paramFileUsed?: string;
 }
 
 /**
@@ -252,6 +258,9 @@ async function callBackend(
     run: callContext.run,
     context: callContext.context,
     resources: apiResources,
+    resolvedRegions: callContext.resolvedRegions,
+    unresolvedLocations: callContext.unresolvedLocations,
+    paramFileUsed: callContext.paramFileUsed,
   };
 
   log.debug(`Calling backend API: ${backendUrl}`);

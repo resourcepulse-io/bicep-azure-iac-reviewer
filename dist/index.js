@@ -30035,6 +30035,9 @@ async function callBackend(resources, apiKey, backendUrl, callContext) {
         run: callContext.run,
         context: callContext.context,
         resources: apiResources,
+        resolvedRegions: callContext.resolvedRegions,
+        unresolvedLocations: callContext.unresolvedLocations,
+        paramFileUsed: callContext.paramFileUsed,
     };
     log.debug(`Calling backend API: ${backendUrl}`);
     log.debug(`Sending ${resources.length} sanitized resource(s)`);
@@ -30847,9 +30850,40 @@ function extractSku(resource) {
  * @param resource - ARM resource object
  * @returns Region string if found, undefined otherwise
  */
-function extractRegion(resource) {
+function isArmExpression(value) {
+    return value.startsWith('[') && value.endsWith(']');
+}
+function normalizeArmExpression(value) {
+    return value.slice(1, -1).trim();
+}
+function resolveLocationExpression(expression, paramValues) {
+    const inner = normalizeArmExpression(expression);
+    const paramMatch = inner.match(/^parameters\(\s*'([^']+)'\s*\)$/);
+    if (paramMatch) {
+        const paramName = paramMatch[1];
+        const value = paramValues?.[paramName];
+        return typeof value === 'string' ? value : undefined;
+    }
+    if (inner === 'resourceGroup().location') {
+        const value = paramValues?.location;
+        return typeof value === 'string' ? value : undefined;
+    }
+    return undefined;
+}
+function extractRegion(resource, context) {
+    if (!context.enableRegionResolution) {
+        return undefined;
+    }
     if (resource.location && typeof resource.location === 'string') {
-        return resource.location;
+        const location = resource.location;
+        if (isArmExpression(location)) {
+            const resolved = resolveLocationExpression(location, context.paramValues);
+            if (resolved === undefined && context.unresolvedLocations) {
+                context.unresolvedLocations.push(normalizeArmExpression(location));
+            }
+            return resolved;
+        }
+        return location;
     }
     return undefined;
 }
@@ -30883,13 +30917,13 @@ function extractProperties(resource) {
  * @param resource - ARM resource object
  * @returns Resource metadata
  */
-function extractSingleResourceMetadata(resource) {
+function extractSingleResourceMetadata(resource, context) {
     const type = resource.type && typeof resource.type === 'string'
         ? resource.type
         : 'unknown';
     const kind = normalizeResourceType(type);
     const sku = extractSku(resource);
-    const region = extractRegion(resource);
+    const region = extractRegion(resource, context);
     const apiVersion = extractApiVersion(resource);
     const properties = extractProperties(resource);
     const metadata = {
@@ -30917,18 +30951,18 @@ function extractSingleResourceMetadata(resource) {
  * @param accumulated - Accumulator for recursively collected resources
  * @returns Array of resource metadata
  */
-function extractResourcesRecursive(resources, accumulated = []) {
+function extractResourcesRecursive(resources, context, accumulated = []) {
     for (const resource of resources) {
         if (typeof resource !== 'object' || resource === null) {
             continue;
         }
         const resourceObj = resource;
         // Extract metadata from current resource
-        const metadata = extractSingleResourceMetadata(resourceObj);
+        const metadata = extractSingleResourceMetadata(resourceObj, context);
         accumulated.push(metadata);
         // Check for nested resources
         if (Array.isArray(resourceObj.resources)) {
-            extractResourcesRecursive(resourceObj.resources, accumulated);
+            extractResourcesRecursive(resourceObj.resources, context, accumulated);
         }
     }
     return accumulated;
@@ -30939,8 +30973,9 @@ function extractResourcesRecursive(resources, accumulated = []) {
  * @returns Extraction result with resources, count, and detected kinds
  * @throws Error if JSON is invalid or missing resources array
  */
-function extractResourceMetadata(armJson) {
+function extractResourceMetadata(armJson, options = {}) {
     log.debug('Extracting resource metadata from ARM template');
+    const { paramValues, enableRegionResolution = true } = options;
     // Parse ARM JSON
     let armTemplate;
     try {
@@ -30954,16 +30989,32 @@ function extractResourceMetadata(armJson) {
     if (!Array.isArray(armTemplate.resources)) {
         throw new Error('ARM template is missing resources array or resources is not an array');
     }
+    const unresolvedLocations = enableRegionResolution && paramValues ? [] : undefined;
+    const context = {
+        paramValues,
+        enableRegionResolution,
+        unresolvedLocations,
+    };
     // Extract resources recursively (handles nested resources)
-    const resources = extractResourcesRecursive(armTemplate.resources);
+    const resources = extractResourcesRecursive(armTemplate.resources, context);
     // Calculate statistics
     const resourceCount = resources.length;
     const kindsDetected = [...new Set(resources.map((r) => r.kind))];
+    const resolvedRegions = [
+        ...new Set(resources
+            .map((resource) => resource.region)
+            .filter((region) => typeof region === 'string' && region.length > 0)),
+    ];
+    const unresolvedLocationTokens = unresolvedLocations
+        ? [...new Set(unresolvedLocations)]
+        : [];
     log.debug(`Extracted ${resourceCount} resource(s), kinds detected: ${kindsDetected.join(', ')}`);
     return {
         resources,
         resourceCount,
         kindsDetected,
+        resolvedRegions,
+        unresolvedLocations: unresolvedLocationTokens,
     };
 }
 
@@ -31313,6 +31364,78 @@ function formatCompilationErrors(results) {
         lines.push('');
     }
     return lines.join('\n');
+}
+
+
+/***/ }),
+
+/***/ 154:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.parseBicepParamFile = parseBicepParamFile;
+function stripLineComment(line) {
+    let inSingle = false;
+    let inDouble = false;
+    for (let i = 0; i < line.length; i += 1) {
+        const ch = line[i];
+        if (ch === "'" && !inDouble) {
+            inSingle = !inSingle;
+            continue;
+        }
+        if (ch === '"' && !inSingle) {
+            inDouble = !inDouble;
+            continue;
+        }
+        if (ch === '/' && !inSingle && !inDouble && line[i + 1] === '/') {
+            return line.slice(0, i);
+        }
+    }
+    return line;
+}
+function parseValue(raw) {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+        return undefined;
+    }
+    const quote = trimmed[0];
+    if ((quote === '"' || quote === "'") && trimmed.endsWith(quote)) {
+        return trimmed.slice(1, -1);
+    }
+    if (/^-?\d+$/.test(trimmed)) {
+        return Number.parseInt(trimmed, 10);
+    }
+    if (/^(true|false)$/i.test(trimmed)) {
+        return trimmed.toLowerCase() === 'true';
+    }
+    return undefined;
+}
+function parseBicepParamFile(contents) {
+    const params = {};
+    const errors = [];
+    const lines = contents.split(/\r?\n/);
+    for (let index = 0; index < lines.length; index += 1) {
+        const rawLine = stripLineComment(lines[index]);
+        const trimmed = rawLine.trim();
+        if (trimmed === '' || trimmed.startsWith('using ')) {
+            continue;
+        }
+        const match = trimmed.match(/^param\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/);
+        if (!match) {
+            continue;
+        }
+        const name = match[1];
+        const valueRaw = match[2].trim();
+        const value = parseValue(valueRaw);
+        if (value === undefined) {
+            errors.push(`Line ${index + 1}: unsupported value for param "${name}" (only string, boolean, and integer are supported)`);
+            continue;
+        }
+        params[name] = value;
+    }
+    return { params, errors };
 }
 
 
@@ -32009,9 +32132,12 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(7484));
+const fs = __importStar(__nccwpck_require__(9896));
+const path = __importStar(__nccwpck_require__(6928));
 const log = __importStar(__nccwpck_require__(6555));
 const context_1 = __nccwpck_require__(9556);
 const prFiles_1 = __nccwpck_require__(2290);
+const bicepParams_1 = __nccwpck_require__(154);
 /**
  * Main entry point for the Azure IaC Reviewer GitHub Action
  */
@@ -32061,13 +32187,54 @@ async function run() {
         const { diffResources } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(2104)));
         const { compileBicepContent } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(9788)));
         const resourcesWithChange = [];
+        const paramFileInput = core.getInput('param_file').trim();
+        let paramFileValues;
+        const enableRegionResolution = paramFileInput.length > 0;
+        const resolvedRegions = new Set();
+        const unresolvedLocations = new Set();
+        const paramFileUsed = enableRegionResolution ? paramFileInput : undefined;
+        if (enableRegionResolution) {
+            const workspaceRoot = process.env.GITHUB_WORKSPACE || process.cwd();
+            const resolvedParamFilePath = path.resolve(workspaceRoot, paramFileInput);
+            const workspaceResolved = path.resolve(workspaceRoot);
+            if (resolvedParamFilePath !== workspaceResolved &&
+                !resolvedParamFilePath.startsWith(`${workspaceResolved}${path.sep}`)) {
+                throw new Error(`Invalid param_file path: ${paramFileInput} (must be within the repository)`);
+            }
+            if (!fs.existsSync(resolvedParamFilePath)) {
+                throw new Error(`param_file not found: ${paramFileInput} (resolved to ${resolvedParamFilePath})`);
+            }
+            if (!fs.statSync(resolvedParamFilePath).isFile()) {
+                throw new Error(`param_file is not a file: ${paramFileInput} (resolved to ${resolvedParamFilePath})`);
+            }
+            log.info(`Using param file: ${paramFileInput}`);
+            const paramFileContents = fs.readFileSync(resolvedParamFilePath, 'utf8');
+            const parseResult = (0, bicepParams_1.parseBicepParamFile)(paramFileContents);
+            if (parseResult.errors.length > 0) {
+                log.warning(`Param file parse issues: ${parseResult.errors.join('; ')}`);
+            }
+            paramFileValues = parseResult.params;
+            log.info(`Parsed ${Object.keys(parseResult.params).length} param value(s) from ${paramFileInput}`);
+        }
+        else {
+            log.info('No param_file provided; skipping region resolution.');
+        }
         for (const compilation of successfulCompilations) {
             try {
                 // Get the change type for this file
                 const fileChange = fileChangeMap.get(compilation.filePath) || 'modified';
                 // Convert ARM template object back to JSON string for extraction
                 const armJson = JSON.stringify(compilation.armTemplate);
-                const headExtraction = extractResourceMetadata(armJson);
+                const headExtraction = extractResourceMetadata(armJson, {
+                    paramValues: paramFileValues,
+                    enableRegionResolution,
+                });
+                for (const region of headExtraction.resolvedRegions) {
+                    resolvedRegions.add(region);
+                }
+                for (const token of headExtraction.unresolvedLocations) {
+                    unresolvedLocations.add(token);
+                }
                 if (fileChange === 'added') {
                     // New file - all resources are added
                     for (const resource of headExtraction.resources) {
@@ -32092,7 +32259,10 @@ async function run() {
                         if (baseCompilation.success && baseCompilation.armTemplate) {
                             // Extract resources from base
                             const baseArmJson = JSON.stringify(baseCompilation.armTemplate);
-                            const baseExtraction = extractResourceMetadata(baseArmJson);
+                            const baseExtraction = extractResourceMetadata(baseArmJson, {
+                                paramValues: paramFileValues,
+                                enableRegionResolution,
+                            });
                             // Diff resources between base and head
                             const diffResult = diffResources(baseExtraction.resources, headExtraction.resources);
                             log.info(`Resource diff for ${compilation.filePath}: +${diffResult.added} added, -${diffResult.removed} removed, ~${diffResult.modified} modified, ${diffResult.unchanged} unchanged`);
@@ -32172,6 +32342,9 @@ async function run() {
                 sha: prContext.sha,
                 ref: prContext.ref,
             },
+            resolvedRegions: Array.from(resolvedRegions),
+            unresolvedLocations: Array.from(unresolvedLocations),
+            paramFileUsed,
         };
         // Analyze resources (backend or local fallback)
         const analysisResult = await analyzeResources(sanitizationResult.resources, {
@@ -32182,7 +32355,28 @@ async function run() {
         log.info(`Analysis completed using ${analysisResult.source} source`);
         // Format as PR comment
         const { formatPRComment } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(1990)));
-        const commentBody = formatPRComment(analysisResult);
+        const resolvedRegionsList = Array.from(resolvedRegions);
+        const unresolvedLocationsList = Array.from(unresolvedLocations);
+        let regionSummary = '';
+        if (!enableRegionResolution) {
+            regionSummary = 'Regions: unknown (no param_file provided)';
+        }
+        else if (resolvedRegionsList.length > 0) {
+            regionSummary = `Regions: ${resolvedRegionsList.join(', ')}`;
+        }
+        else if (unresolvedLocationsList.length > 0) {
+            regionSummary = 'Regions: unknown (unresolved locations)';
+        }
+        else {
+            regionSummary = 'Regions: unknown (no location fields detected)';
+        }
+        const regionLines = ['**Region resolution**', regionSummary];
+        regionLines.push(`Param file: ${paramFileUsed ?? 'none'}`);
+        if (unresolvedLocationsList.length > 0) {
+            regionLines.push(`Unresolved: ${unresolvedLocationsList.join(', ')}`);
+        }
+        const markdownWithRegions = `${regionLines.join('\n')}\n\n${analysisResult.markdown}`;
+        const commentBody = formatPRComment({ ...analysisResult, markdown: markdownWithRegions });
         // Post or update PR comment
         const { createOrUpdateComment } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(6645)));
         await createOrUpdateComment(octokit, prContext, commentBody, commentMode);

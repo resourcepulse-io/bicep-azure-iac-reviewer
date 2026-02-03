@@ -1,4 +1,5 @@
 import * as log from '../utils/log';
+import type { BicepParamValue } from './bicepParams';
 
 /**
  * Metadata extracted from a single ARM resource
@@ -19,6 +20,22 @@ export interface ExtractionResult {
   resources: ResourceMetadata[];
   resourceCount: number;
   kindsDetected: string[];
+  resolvedRegions: string[];
+  unresolvedLocations: string[];
+}
+
+/**
+ * Options for extracting resource metadata
+ */
+export interface ExtractionOptions {
+  paramValues?: Record<string, BicepParamValue>;
+  enableRegionResolution?: boolean;
+}
+
+interface RegionResolutionContext {
+  paramValues?: Record<string, BicepParamValue>;
+  enableRegionResolution: boolean;
+  unresolvedLocations?: string[];
 }
 
 /**
@@ -88,9 +105,53 @@ function extractSku(resource: Record<string, unknown>): string | undefined {
  * @param resource - ARM resource object
  * @returns Region string if found, undefined otherwise
  */
-function extractRegion(resource: Record<string, unknown>): string | undefined {
+function isArmExpression(value: string): boolean {
+  return value.startsWith('[') && value.endsWith(']');
+}
+
+function normalizeArmExpression(value: string): string {
+  return value.slice(1, -1).trim();
+}
+
+function resolveLocationExpression(
+  expression: string,
+  paramValues?: Record<string, BicepParamValue>
+): string | undefined {
+  const inner = normalizeArmExpression(expression);
+
+  const paramMatch = inner.match(/^parameters\(\s*'([^']+)'\s*\)$/);
+  if (paramMatch) {
+    const paramName = paramMatch[1];
+    const value = paramValues?.[paramName];
+    return typeof value === 'string' ? value : undefined;
+  }
+
+  if (inner === 'resourceGroup().location') {
+    const value = paramValues?.location;
+    return typeof value === 'string' ? value : undefined;
+  }
+
+  return undefined;
+}
+
+function extractRegion(
+  resource: Record<string, unknown>,
+  context: RegionResolutionContext
+): string | undefined {
+  if (!context.enableRegionResolution) {
+    return undefined;
+  }
+
   if (resource.location && typeof resource.location === 'string') {
-    return resource.location;
+    const location = resource.location;
+    if (isArmExpression(location)) {
+      const resolved = resolveLocationExpression(location, context.paramValues);
+      if (resolved === undefined && context.unresolvedLocations) {
+        context.unresolvedLocations.push(normalizeArmExpression(location));
+      }
+      return resolved;
+    }
+    return location;
   }
   return undefined;
 }
@@ -132,7 +193,8 @@ function extractProperties(
  * @returns Resource metadata
  */
 function extractSingleResourceMetadata(
-  resource: Record<string, unknown>
+  resource: Record<string, unknown>,
+  context: RegionResolutionContext
 ): ResourceMetadata {
   const type =
     resource.type && typeof resource.type === 'string'
@@ -140,7 +202,7 @@ function extractSingleResourceMetadata(
       : 'unknown';
   const kind = normalizeResourceType(type);
   const sku = extractSku(resource);
-  const region = extractRegion(resource);
+  const region = extractRegion(resource, context);
   const apiVersion = extractApiVersion(resource);
   const properties = extractProperties(resource);
 
@@ -174,6 +236,7 @@ function extractSingleResourceMetadata(
  */
 function extractResourcesRecursive(
   resources: unknown[],
+  context: RegionResolutionContext,
   accumulated: ResourceMetadata[] = []
 ): ResourceMetadata[] {
   for (const resource of resources) {
@@ -184,12 +247,12 @@ function extractResourcesRecursive(
     const resourceObj = resource as Record<string, unknown>;
 
     // Extract metadata from current resource
-    const metadata = extractSingleResourceMetadata(resourceObj);
+    const metadata = extractSingleResourceMetadata(resourceObj, context);
     accumulated.push(metadata);
 
     // Check for nested resources
     if (Array.isArray(resourceObj.resources)) {
-      extractResourcesRecursive(resourceObj.resources, accumulated);
+      extractResourcesRecursive(resourceObj.resources, context, accumulated);
     }
   }
 
@@ -202,8 +265,13 @@ function extractResourcesRecursive(
  * @returns Extraction result with resources, count, and detected kinds
  * @throws Error if JSON is invalid or missing resources array
  */
-export function extractResourceMetadata(armJson: string): ExtractionResult {
+export function extractResourceMetadata(
+  armJson: string,
+  options: ExtractionOptions = {}
+): ExtractionResult {
   log.debug('Extracting resource metadata from ARM template');
+
+  const { paramValues, enableRegionResolution = true } = options;
 
   // Parse ARM JSON
   let armTemplate: Record<string, unknown>;
@@ -221,12 +289,29 @@ export function extractResourceMetadata(armJson: string): ExtractionResult {
     );
   }
 
+  const unresolvedLocations = enableRegionResolution && paramValues ? [] : undefined;
+  const context: RegionResolutionContext = {
+    paramValues,
+    enableRegionResolution,
+    unresolvedLocations,
+  };
+
   // Extract resources recursively (handles nested resources)
-  const resources = extractResourcesRecursive(armTemplate.resources);
+  const resources = extractResourcesRecursive(armTemplate.resources, context);
 
   // Calculate statistics
   const resourceCount = resources.length;
   const kindsDetected = [...new Set(resources.map((r) => r.kind))];
+  const resolvedRegions = [
+    ...new Set(
+      resources
+        .map((resource) => resource.region)
+        .filter((region): region is string => typeof region === 'string' && region.length > 0)
+    ),
+  ];
+  const unresolvedLocationTokens = unresolvedLocations
+    ? [...new Set(unresolvedLocations)]
+    : [];
 
   log.debug(
     `Extracted ${resourceCount} resource(s), kinds detected: ${kindsDetected.join(', ')}`
@@ -236,5 +321,7 @@ export function extractResourceMetadata(armJson: string): ExtractionResult {
     resources,
     resourceCount,
     kindsDetected,
+    resolvedRegions,
+    unresolvedLocations: unresolvedLocationTokens,
   };
 }

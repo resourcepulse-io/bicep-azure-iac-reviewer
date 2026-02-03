@@ -57,6 +57,9 @@ export interface BackendCallContext {
     pr: PRInfo;
     run: RunInfo;
     context: ContextInfo;
+    resolvedRegions?: string[];
+    unresolvedLocations?: string[];
+    paramFileUsed?: string;
 }
 /**
  * Options for resource analysis

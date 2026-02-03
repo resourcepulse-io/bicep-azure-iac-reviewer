@@ -19,6 +19,10 @@ inputs:
     description: 'Comment mode: "update" to update existing comment, "new" to create new comment each time'
     required: false
     default: 'update'
+  param_file:
+    description: 'Path to a .bicepparam file in the repo (e.g., infra/params/dev.bicepparam)'
+    required: false
+    default: ''
 
 outputs:
   resources_detected:

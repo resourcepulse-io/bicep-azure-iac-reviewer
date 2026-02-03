@@ -533,5 +533,98 @@ describe('ARM Extract Module', () => {
       expect(result.resources[3].sku).toBe('Standard_LRS');
       expect(result.resources[3].region).toBe('eastus');
     });
+
+    it('should resolve parameter-based locations using param values', () => {
+      const armJson = JSON.stringify({
+        $schema:
+          'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        resources: [
+          {
+            type: 'Microsoft.Storage/storageAccounts',
+            apiVersion: '2021-04-01',
+            location: "[parameters('location')]",
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson, {
+        paramValues: { location: 'westeurope' },
+        enableRegionResolution: true,
+      });
+
+      expect(result.resources[0].region).toBe('westeurope');
+      expect(result.resolvedRegions).toEqual(['westeurope']);
+    });
+
+    it('should resolve resourceGroup().location using param values', () => {
+      const armJson = JSON.stringify({
+        $schema:
+          'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        resources: [
+          {
+            type: 'Microsoft.Network/virtualNetworks',
+            apiVersion: '2021-03-01',
+            location: '[resourceGroup().location]',
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson, {
+        paramValues: { location: 'eastus2' },
+        enableRegionResolution: true,
+      });
+
+      expect(result.resources[0].region).toBe('eastus2');
+      expect(result.resolvedRegions).toEqual(['eastus2']);
+    });
+
+    it('should track unresolved locations when param values are missing', () => {
+      const armJson = JSON.stringify({
+        $schema:
+          'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        resources: [
+          {
+            type: 'Microsoft.Storage/storageAccounts',
+            apiVersion: '2021-04-01',
+            location: "[parameters('location')]",
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson, {
+        paramValues: {},
+        enableRegionResolution: true,
+      });
+
+      expect(result.resources[0].region).toBeUndefined();
+      expect(result.resolvedRegions).toEqual([]);
+      expect(result.unresolvedLocations).toEqual(["parameters('location')"]);
+    });
+
+    it('should skip region extraction when disabled', () => {
+      const armJson = JSON.stringify({
+        $schema:
+          'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        resources: [
+          {
+            type: 'Microsoft.Storage/storageAccounts',
+            apiVersion: '2021-04-01',
+            location: 'eastus',
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson, {
+        enableRegionResolution: false,
+      });
+
+      expect(result.resources[0].region).toBeUndefined();
+      expect(result.resolvedRegions).toEqual([]);
+      expect(result.unresolvedLocations).toEqual([]);
+    });
   });
 });

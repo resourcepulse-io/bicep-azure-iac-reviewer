@@ -63,6 +63,9 @@ describe('analyzeResources', () => {
       sha: 'abc123',
       ref: 'feature-branch',
     },
+    resolvedRegions: ['eastus', 'westus'],
+    unresolvedLocations: ["parameters('location')"],
+    paramFileUsed: 'infra/params/dev.bicepparam',
   };
 
   beforeEach(() => {
@@ -252,6 +255,9 @@ describe('analyzeResources', () => {
       expect(requestBody.pr.title).toBe('Test PR');
       expect(requestBody.pr.author).toBe('test-user');
       expect(requestBody.context.sha).toBe('abc123');
+      expect(requestBody.resolvedRegions).toEqual(['eastus', 'westus']);
+      expect(requestBody.unresolvedLocations).toEqual(["parameters('location')"]);
+      expect(requestBody.paramFileUsed).toBe('infra/params/dev.bicepparam');
     });
 
     it('should convert resources to API format (kind, region, sku, count, change)', async () => {
