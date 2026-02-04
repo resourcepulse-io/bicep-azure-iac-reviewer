@@ -19,8 +19,16 @@ inputs:
     description: 'Comment mode: "update" to update existing comment, "new" to create new comment each time'
     required: false
     default: 'update'
+  env:
+    description: 'Environment hint for policy selection (e.g., dev, prod)'
+    required: false
+    default: ''
   param_file:
     description: 'Path to a .bicepparam file in the repo (e.g., infra/params/dev.bicepparam)'
+    required: false
+    default: ''
+  main_region:
+    description: 'Fallback Azure region when param_file is not provided (e.g., eastus, westeurope)'
     required: false
     default: ''
 

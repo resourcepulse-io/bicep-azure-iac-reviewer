@@ -19,6 +19,8 @@ export interface SanitizedResource {
   // Fields for tracking changes on modified resources (SKU/region upgrades/downgrades)
   oldSku?: string;
   oldRegion?: string;
+  // Tag keys only, with empty values
+  tags?: Record<string, string>;
   // Fields kept for internal use but not sent to API
   type?: string;
   apiVersion?: string;
@@ -241,9 +243,25 @@ function sanitizeProperties(
       continue;
     }
 
-    // Special handling for tags - always remove as they contain sensitive values
+    // Special handling for tags - keep only tag keys with empty values
     if (key.toLowerCase() === 'tags') {
-      removedFields.add(key);
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const sanitizedTags: Record<string, string> = {};
+        for (const tagKey of Object.keys(value as Record<string, unknown>)) {
+          if (isForbiddenField(tagKey)) {
+            removedFields.add(`tags.${tagKey}`);
+            continue;
+          }
+          sanitizedTags[tagKey] = '';
+        }
+        if (Object.keys(sanitizedTags).length > 0) {
+          sanitized[key] = sanitizedTags;
+        } else {
+          removedFields.add(key);
+        }
+      } else {
+        removedFields.add(key);
+      }
       continue;
     }
 
@@ -341,7 +359,14 @@ function sanitizeSingleResource(
   if (resource.properties) {
     const safeProperties = sanitizeProperties(resource.properties, removedFields);
     if (safeProperties) {
-      sanitized.safeProperties = safeProperties;
+      const tags = safeProperties.tags;
+      if (tags && typeof tags === 'object' && !Array.isArray(tags)) {
+        sanitized.tags = tags as Record<string, string>;
+        delete safeProperties.tags;
+      }
+      if (Object.keys(safeProperties).length > 0) {
+        sanitized.safeProperties = safeProperties;
+      }
     }
   }
 

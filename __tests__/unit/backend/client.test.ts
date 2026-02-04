@@ -21,6 +21,12 @@ describe('analyzeResources', () => {
       region: 'eastus',
       count: 1,
       change: 'modified',
+      oldSku: 'Standard_B2s',
+      oldRegion: 'westus2',
+      tags: {
+        environment: '',
+        owner: '',
+      },
       type: 'Microsoft.Compute/virtualMachines',
       apiVersion: '2023-01-01',
     },
@@ -51,21 +57,20 @@ describe('analyzeResources', () => {
     },
     pr: {
       number: 42,
-      title: 'Test PR',
-      author: 'test-user',
-      baseBranch: 'main',
+      headSha: 'abc123',
     },
     run: {
-      id: '12345',
-      url: 'https://github.com/test-owner/test-repo/actions/runs/12345',
+      runId: '12345',
+      attempt: 2,
     },
     context: {
-      sha: 'abc123',
-      ref: 'feature-branch',
+      iacEngine: 'bicep',
+      envHint: 'dev',
+      envSource: 'branch heuristic',
+      paramFileUsed: 'infra/params/dev.bicepparam',
+      paramFileSource: 'workflow input',
+      resolvedRegions: ['eastus', 'westus'],
     },
-    resolvedRegions: ['eastus', 'westus'],
-    unresolvedLocations: ["parameters('location')"],
-    paramFileUsed: 'infra/params/dev.bicepparam',
   };
 
   beforeEach(() => {
@@ -252,12 +257,13 @@ describe('analyzeResources', () => {
 
       expect(requestBody.repo.fullName).toBe('test-owner/test-repo');
       expect(requestBody.pr.number).toBe(42);
-      expect(requestBody.pr.title).toBe('Test PR');
-      expect(requestBody.pr.author).toBe('test-user');
-      expect(requestBody.context.sha).toBe('abc123');
-      expect(requestBody.resolvedRegions).toEqual(['eastus', 'westus']);
-      expect(requestBody.unresolvedLocations).toEqual(["parameters('location')"]);
-      expect(requestBody.paramFileUsed).toBe('infra/params/dev.bicepparam');
+      expect(requestBody.pr.headSha).toBe('abc123');
+      expect(requestBody.context.iacEngine).toBe('bicep');
+      expect(requestBody.context.envHint).toBe('dev');
+      expect(requestBody.context.envSource).toBe('branch heuristic');
+      expect(requestBody.context.resolvedRegions).toEqual(['eastus', 'westus']);
+      expect(requestBody.context.paramFileUsed).toBe('infra/params/dev.bicepparam');
+      expect(requestBody.context.paramFileSource).toBe('workflow input');
     });
 
     it('should convert resources to API format (kind, region, sku, count, change)', async () => {
@@ -284,6 +290,12 @@ describe('analyzeResources', () => {
         sku: 'Standard_D2s_v3',
         count: 1,
         change: 'modified',
+        oldSku: 'Standard_B2s',
+        oldRegion: 'westus2',
+        tags: {
+          environment: '',
+          owner: '',
+        },
       });
     });
   });

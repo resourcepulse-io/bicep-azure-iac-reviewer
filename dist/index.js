@@ -30003,13 +30003,23 @@ function formatKindLabel(kind) {
  * @returns API-compatible resource
  */
 function toApiResource(resource) {
-    return {
+    const apiResource = {
         kind: resource.kind,
         region: resource.region,
         sku: resource.sku,
         count: resource.count,
         change: resource.change,
     };
+    if (resource.oldSku !== undefined) {
+        apiResource.oldSku = resource.oldSku;
+    }
+    if (resource.oldRegion !== undefined) {
+        apiResource.oldRegion = resource.oldRegion;
+    }
+    if (resource.tags) {
+        apiResource.tags = resource.tags;
+    }
+    return apiResource;
 }
 /**
  * Call backend API with timeout and error handling
@@ -30035,14 +30045,11 @@ async function callBackend(resources, apiKey, backendUrl, callContext) {
         run: callContext.run,
         context: callContext.context,
         resources: apiResources,
-        resolvedRegions: callContext.resolvedRegions,
-        unresolvedLocations: callContext.unresolvedLocations,
-        paramFileUsed: callContext.paramFileUsed,
     };
     log.debug(`Calling backend API: ${backendUrl}`);
     log.debug(`Sending ${resources.length} sanitized resource(s)`);
     log.debug(`Repository: ${callContext.repo.fullName}`);
-    log.debug(`PR #${callContext.pr.number}: ${callContext.pr.title}`);
+    log.debug(`PR #${callContext.pr.number}: ${callContext.pr.headSha}`);
     try {
         // Create AbortController for timeout
         const controller = new AbortController();
@@ -31897,9 +31904,27 @@ function sanitizeProperties(properties, removedFields) {
             removedFields.add(key);
             continue;
         }
-        // Special handling for tags - always remove as they contain sensitive values
+        // Special handling for tags - keep only tag keys with empty values
         if (key.toLowerCase() === 'tags') {
-            removedFields.add(key);
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                const sanitizedTags = {};
+                for (const tagKey of Object.keys(value)) {
+                    if (isForbiddenField(tagKey)) {
+                        removedFields.add(`tags.${tagKey}`);
+                        continue;
+                    }
+                    sanitizedTags[tagKey] = '';
+                }
+                if (Object.keys(sanitizedTags).length > 0) {
+                    sanitized[key] = sanitizedTags;
+                }
+                else {
+                    removedFields.add(key);
+                }
+            }
+            else {
+                removedFields.add(key);
+            }
             continue;
         }
         // Handle nested objects
@@ -31971,7 +31996,14 @@ function sanitizeSingleResource(resource, removedFields, options = {}) {
     if (resource.properties) {
         const safeProperties = sanitizeProperties(resource.properties, removedFields);
         if (safeProperties) {
-            sanitized.safeProperties = safeProperties;
+            const tags = safeProperties.tags;
+            if (tags && typeof tags === 'object' && !Array.isArray(tags)) {
+                sanitized.tags = tags;
+                delete safeProperties.tags;
+            }
+            if (Object.keys(safeProperties).length > 0) {
+                sanitized.safeProperties = safeProperties;
+            }
         }
     }
     return sanitized;
@@ -32155,12 +32187,14 @@ async function run() {
             return;
         }
         log.info(`Found ${bicepFilesWithStatus.length} .bicep file(s) to analyze`);
-        // Extract just the filenames for compilation
-        const bicepFiles = bicepFilesWithStatus.map((f) => f.filename);
-        // Create a map of filename to change type for later use
+        // Resolve workspace root for absolute path resolution
+        const workspaceRoot = process.env.GITHUB_WORKSPACE || process.cwd();
+        // Resolve workspace-relative paths from GitHub API to absolute paths
+        const bicepFiles = bicepFilesWithStatus.map((f) => path.resolve(workspaceRoot, f.filename));
+        // Create a map of absolute path to change type for later use
         const fileChangeMap = new Map();
         for (const file of bicepFilesWithStatus) {
-            fileChangeMap.set(file.filename, file.change);
+            fileChangeMap.set(path.resolve(workspaceRoot, file.filename), file.change);
         }
         // Download and cache Bicep CLI
         const { ensureBicepCli, compileBicepFiles, formatCompilationErrors } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(9788)));
@@ -32188,13 +32222,13 @@ async function run() {
         const { compileBicepContent } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(9788)));
         const resourcesWithChange = [];
         const paramFileInput = core.getInput('param_file').trim();
+        const mainRegionInput = core.getInput('main_region').trim();
         let paramFileValues;
-        const enableRegionResolution = paramFileInput.length > 0;
+        let enableRegionResolution = paramFileInput.length > 0;
         const resolvedRegions = new Set();
         const unresolvedLocations = new Set();
         const paramFileUsed = enableRegionResolution ? paramFileInput : undefined;
         if (enableRegionResolution) {
-            const workspaceRoot = process.env.GITHUB_WORKSPACE || process.cwd();
             const resolvedParamFilePath = path.resolve(workspaceRoot, paramFileInput);
             const workspaceResolved = path.resolve(workspaceRoot);
             if (resolvedParamFilePath !== workspaceResolved &&
@@ -32216,8 +32250,14 @@ async function run() {
             paramFileValues = parseResult.params;
             log.info(`Parsed ${Object.keys(parseResult.params).length} param value(s) from ${paramFileInput}`);
         }
+        else if (mainRegionInput) {
+            // Fallback: use main_region as the location value for region resolution
+            enableRegionResolution = true;
+            paramFileValues = { location: mainRegionInput };
+            log.info(`No param_file provided; using main_region fallback: ${mainRegionInput}`);
+        }
         else {
-            log.info('No param_file provided; skipping region resolution.');
+            log.info('No param_file or main_region provided; skipping region resolution.');
         }
         for (const compilation of successfulCompilations) {
             try {
@@ -32320,8 +32360,20 @@ async function run() {
         const apiKey = core.getInput('api_key') || undefined;
         const serverAddress = core.getInput('server_address') || undefined;
         const commentMode = (core.getInput('comment_mode') || 'update');
+        const envInput = core.getInput('env').trim();
+        // If no region data and no API key — nothing meaningful to send, skip analysis
+        if (!enableRegionResolution && !apiKey) {
+            log.info('No param_file, main_region, or api_key provided. Skipping analysis — nothing to send.');
+            return;
+        }
         // Build backend call context
         const { analyzeResources } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(9325)));
+        const normalizedBaseBranch = prContext.baseBranch.toLowerCase();
+        const envHint = envInput || (normalizedBaseBranch === 'main' || normalizedBaseBranch === 'master' ? 'prod' : 'dev');
+        const envSource = envInput ? 'workflow input' : 'branch heuristic';
+        const runAttemptRaw = process.env.GITHUB_RUN_ATTEMPT;
+        const runAttempt = runAttemptRaw ? Number.parseInt(runAttemptRaw, 10) : 1;
+        const runAttemptValue = Number.isFinite(runAttempt) ? runAttempt : 1;
         const callContext = {
             repo: {
                 owner: prContext.owner,
@@ -32330,21 +32382,20 @@ async function run() {
             },
             pr: {
                 number: prContext.prNumber,
-                title: prContext.prTitle,
-                author: prContext.prAuthor,
-                baseBranch: prContext.baseBranch,
+                headSha: prContext.sha,
             },
             run: {
-                id: process.env.GITHUB_RUN_ID || '',
-                url: `https://github.com/${prContext.fullName}/actions/runs/${process.env.GITHUB_RUN_ID || ''}`,
+                runId: process.env.GITHUB_RUN_ID || '',
+                attempt: runAttemptValue,
             },
             context: {
-                sha: prContext.sha,
-                ref: prContext.ref,
+                iacEngine: 'bicep',
+                envHint,
+                envSource,
+                paramFileUsed,
+                paramFileSource: 'workflow input',
+                resolvedRegions: Array.from(resolvedRegions),
             },
-            resolvedRegions: Array.from(resolvedRegions),
-            unresolvedLocations: Array.from(unresolvedLocations),
-            paramFileUsed,
         };
         // Analyze resources (backend or local fallback)
         const analysisResult = await analyzeResources(sanitizationResult.resources, {
@@ -32359,7 +32410,7 @@ async function run() {
         const unresolvedLocationsList = Array.from(unresolvedLocations);
         let regionSummary = '';
         if (!enableRegionResolution) {
-            regionSummary = 'Regions: unknown (no param_file provided)';
+            regionSummary = 'Regions: unknown (no param_file or main_region provided)';
         }
         else if (resolvedRegionsList.length > 0) {
             regionSummary = `Regions: ${resolvedRegionsList.join(', ')}`;
@@ -32372,6 +32423,9 @@ async function run() {
         }
         const regionLines = ['**Region resolution**', regionSummary];
         regionLines.push(`Param file: ${paramFileUsed ?? 'none'}`);
+        if (!paramFileUsed && mainRegionInput) {
+            regionLines.push(`Main region (fallback): ${mainRegionInput}`);
+        }
         if (unresolvedLocationsList.length > 0) {
             regionLines.push(`Unresolved: ${unresolvedLocationsList.join(', ')}`);
         }

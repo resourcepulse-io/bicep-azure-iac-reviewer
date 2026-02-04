@@ -35,13 +35,18 @@ async function run(): Promise<void> {
 
     log.info(`Found ${bicepFilesWithStatus.length} .bicep file(s) to analyze`);
 
-    // Extract just the filenames for compilation
-    const bicepFiles = bicepFilesWithStatus.map((f) => f.filename);
+    // Resolve workspace root for absolute path resolution
+    const workspaceRoot = process.env.GITHUB_WORKSPACE || process.cwd();
 
-    // Create a map of filename to change type for later use
+    // Resolve workspace-relative paths from GitHub API to absolute paths
+    const bicepFiles = bicepFilesWithStatus.map((f) =>
+      path.resolve(workspaceRoot, f.filename)
+    );
+
+    // Create a map of absolute path to change type for later use
     const fileChangeMap = new Map<string, BicepFileWithStatus['change']>();
     for (const file of bicepFilesWithStatus) {
-      fileChangeMap.set(file.filename, file.change);
+      fileChangeMap.set(path.resolve(workspaceRoot, file.filename), file.change);
     }
 
     // Download and cache Bicep CLI
@@ -80,14 +85,14 @@ async function run(): Promise<void> {
     const { compileBicepContent } = await import('./iac/bicep');
     const resourcesWithChange: ResourceWithChange[] = [];
     const paramFileInput = core.getInput('param_file').trim();
+    const mainRegionInput = core.getInput('main_region').trim();
     let paramFileValues: Record<string, BicepParamValue> | undefined;
-    const enableRegionResolution = paramFileInput.length > 0;
+    let enableRegionResolution = paramFileInput.length > 0;
     const resolvedRegions = new Set<string>();
     const unresolvedLocations = new Set<string>();
     const paramFileUsed = enableRegionResolution ? paramFileInput : undefined;
 
     if (enableRegionResolution) {
-      const workspaceRoot = process.env.GITHUB_WORKSPACE || process.cwd();
       const resolvedParamFilePath = path.resolve(workspaceRoot, paramFileInput);
       const workspaceResolved = path.resolve(workspaceRoot);
       if (
@@ -118,8 +123,13 @@ async function run(): Promise<void> {
       log.info(
         `Parsed ${Object.keys(parseResult.params).length} param value(s) from ${paramFileInput}`
       );
+    } else if (mainRegionInput) {
+      // Fallback: use main_region as the location value for region resolution
+      enableRegionResolution = true;
+      paramFileValues = { location: mainRegionInput };
+      log.info(`No param_file provided; using main_region fallback: ${mainRegionInput}`);
     } else {
-      log.info('No param_file provided; skipping region resolution.');
+      log.info('No param_file or main_region provided; skipping region resolution.');
     }
 
     for (const compilation of successfulCompilations) {
@@ -245,9 +255,25 @@ async function run(): Promise<void> {
     const apiKey = core.getInput('api_key') || undefined;
     const serverAddress = core.getInput('server_address') || undefined;
     const commentMode = (core.getInput('comment_mode') || 'update') as 'update' | 'new';
+    const envInput = core.getInput('env').trim();
+
+    // If no region data and no API key — nothing meaningful to send, skip analysis
+    if (!enableRegionResolution && !apiKey) {
+      log.info(
+        'No param_file, main_region, or api_key provided. Skipping analysis — nothing to send.'
+      );
+      return;
+    }
 
     // Build backend call context
     const { analyzeResources } = await import('./backend/client');
+
+    const normalizedBaseBranch = prContext.baseBranch.toLowerCase();
+    const envHint = envInput || (normalizedBaseBranch === 'main' || normalizedBaseBranch === 'master' ? 'prod' : 'dev');
+    const envSource = envInput ? 'workflow input' : 'branch heuristic';
+    const runAttemptRaw = process.env.GITHUB_RUN_ATTEMPT;
+    const runAttempt = runAttemptRaw ? Number.parseInt(runAttemptRaw, 10) : 1;
+    const runAttemptValue = Number.isFinite(runAttempt) ? runAttempt : 1;
 
     const callContext: BackendCallContext = {
       repo: {
@@ -257,21 +283,20 @@ async function run(): Promise<void> {
       },
       pr: {
         number: prContext.prNumber,
-        title: prContext.prTitle,
-        author: prContext.prAuthor,
-        baseBranch: prContext.baseBranch,
+        headSha: prContext.sha,
       },
       run: {
-        id: process.env.GITHUB_RUN_ID || '',
-        url: `https://github.com/${prContext.fullName}/actions/runs/${process.env.GITHUB_RUN_ID || ''}`,
+        runId: process.env.GITHUB_RUN_ID || '',
+        attempt: runAttemptValue,
       },
       context: {
-        sha: prContext.sha,
-        ref: prContext.ref,
+        iacEngine: 'bicep',
+        envHint,
+        envSource,
+        paramFileUsed,
+        paramFileSource: 'workflow input',
+        resolvedRegions: Array.from(resolvedRegions),
       },
-      resolvedRegions: Array.from(resolvedRegions),
-      unresolvedLocations: Array.from(unresolvedLocations),
-      paramFileUsed,
     };
 
     // Analyze resources (backend or local fallback)
@@ -289,7 +314,7 @@ async function run(): Promise<void> {
     const unresolvedLocationsList = Array.from(unresolvedLocations);
     let regionSummary = '';
     if (!enableRegionResolution) {
-      regionSummary = 'Regions: unknown (no param_file provided)';
+      regionSummary = 'Regions: unknown (no param_file or main_region provided)';
     } else if (resolvedRegionsList.length > 0) {
       regionSummary = `Regions: ${resolvedRegionsList.join(', ')}`;
     } else if (unresolvedLocationsList.length > 0) {
@@ -300,6 +325,9 @@ async function run(): Promise<void> {
 
     const regionLines = ['**Region resolution**', regionSummary];
     regionLines.push(`Param file: ${paramFileUsed ?? 'none'}`);
+    if (!paramFileUsed && mainRegionInput) {
+      regionLines.push(`Main region (fallback): ${mainRegionInput}`);
+    }
     if (unresolvedLocationsList.length > 0) {
       regionLines.push(`Unresolved: ${unresolvedLocationsList.join(', ')}`);
     }

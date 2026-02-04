@@ -21,23 +21,25 @@ export interface RepositoryInfo {
  */
 export interface PRInfo {
     number: number;
-    title: string;
-    author: string;
-    baseBranch: string;
+    headSha: string;
 }
 /**
  * GitHub Actions run metadata for backend request
  */
 export interface RunInfo {
-    id: string;
-    url: string;
+    runId: string;
+    attempt: number;
 }
 /**
  * Git context for backend request
  */
 export interface ContextInfo {
-    sha: string;
-    ref: string;
+    iacEngine: 'bicep';
+    envHint: string;
+    envSource: 'workflow input' | 'branch heuristic';
+    paramFileUsed?: string;
+    paramFileSource: 'workflow input';
+    resolvedRegions: string[];
 }
 /**
  * API resource format - matches backend contract
@@ -48,6 +50,9 @@ export interface ApiResource {
     sku?: string;
     count: number;
     change: string;
+    oldSku?: string;
+    oldRegion?: string;
+    tags?: Record<string, string>;
 }
 /**
  * Full context for backend API call
@@ -57,9 +62,6 @@ export interface BackendCallContext {
     pr: PRInfo;
     run: RunInfo;
     context: ContextInfo;
-    resolvedRegions?: string[];
-    unresolvedLocations?: string[];
-    paramFileUsed?: string;
 }
 /**
  * Options for resource analysis
