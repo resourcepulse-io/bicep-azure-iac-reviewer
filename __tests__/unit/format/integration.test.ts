@@ -46,17 +46,19 @@ describe('Integration: Backend Client + Markdown Formatter', () => {
     },
     pr: {
       number: 42,
-      title: 'Test PR',
-      author: 'test-user',
-      baseBranch: 'main',
+      headSha: 'abc123',
     },
     run: {
-      id: '12345',
-      url: 'https://github.com/test-owner/test-repo/actions/runs/12345',
+      runId: '12345',
+      attempt: 1,
     },
     context: {
-      sha: 'abc123',
-      ref: 'feature-branch',
+      iacEngine: 'bicep',
+      envHint: 'dev',
+      envSource: 'branch heuristic',
+      paramFileUsed: undefined,
+      paramFileSource: 'workflow input',
+      resolvedRegions: ['eastus'],
     },
   };
 

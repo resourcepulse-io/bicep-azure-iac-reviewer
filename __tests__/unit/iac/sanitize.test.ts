@@ -92,7 +92,7 @@ describe('sanitizeResources', () => {
       expectPropertyRemoved(result.resources[0].safeProperties, 'dependsOn');
     });
 
-    it('should remove all tag values', () => {
+    it('should keep tag keys with empty values', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
@@ -109,6 +109,11 @@ describe('sanitizeResources', () => {
 
       const result = sanitizeResources(resources);
 
+      expect(result.resources[0].tags).toEqual({
+        owner: '',
+        project: '',
+        costCenter: '',
+      });
       expect(result.resources[0].safeProperties?.tags).toBeUndefined();
     });
 

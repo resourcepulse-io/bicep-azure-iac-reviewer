@@ -15,6 +15,7 @@ export interface SanitizedResource {
     change: ResourceChangeType;
     oldSku?: string;
     oldRegion?: string;
+    tags?: Record<string, string>;
     type?: string;
     apiVersion?: string;
     safeProperties?: Record<string, unknown>;

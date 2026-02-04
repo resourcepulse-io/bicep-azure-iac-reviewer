@@ -32,6 +32,7 @@ This action is designed with privacy as a core principle:
 - Azure regions (e.g., `eastus`)
 - Resource counts
 - Change types (added, modified, removed)
+- Tag keys (values stripped)
 
 This makes the action safe to use on private repositories with sensitive infrastructure configurations.
 
@@ -99,6 +100,7 @@ jobs:
 | `param_file` | No | _(empty)_ | Path to a `.bicepparam` file for region resolution. Enables precise region analysis by extracting parameter values from the file. |
 | `server_address` | No | `https://api.resourcepulse.io` | Backend API endpoint URL. |
 | `comment_mode` | No | `update` | Comment behavior: `update` to update existing PR comment, `new` to create a new comment each time. |
+| `env` | No | _(empty)_ | Environment hint for policy selection (e.g., `dev`, `prod`). If not provided, the action uses a branch heuristic. |
 
 ## Action Outputs
 

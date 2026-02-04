@@ -30,25 +30,27 @@ export interface RepositoryInfo {
  */
 export interface PRInfo {
   number: number;
-  title: string;
-  author: string;
-  baseBranch: string;
+  headSha: string;
 }
 
 /**
  * GitHub Actions run metadata for backend request
  */
 export interface RunInfo {
-  id: string;
-  url: string;
+  runId: string;
+  attempt: number;
 }
 
 /**
  * Git context for backend request
  */
 export interface ContextInfo {
-  sha: string;
-  ref: string;
+  iacEngine: 'bicep';
+  envHint: string;
+  envSource: 'workflow input' | 'branch heuristic';
+  paramFileUsed?: string;
+  paramFileSource: 'workflow input';
+  resolvedRegions: string[];
 }
 
 /**
@@ -60,6 +62,9 @@ export interface ApiResource {
   sku?: string;
   count: number;
   change: string;
+  oldSku?: string;
+  oldRegion?: string;
+  tags?: Record<string, string>;
 }
 
 /**
@@ -71,9 +76,6 @@ interface AnalysisRequest {
   run: RunInfo;
   context: ContextInfo;
   resources: ApiResource[];
-  resolvedRegions?: string[];
-  unresolvedLocations?: string[];
-  paramFileUsed?: string;
 }
 
 /**
@@ -196,9 +198,6 @@ export interface BackendCallContext {
   pr: PRInfo;
   run: RunInfo;
   context: ContextInfo;
-  resolvedRegions?: string[];
-  unresolvedLocations?: string[];
-  paramFileUsed?: string;
 }
 
 /**
@@ -207,13 +206,25 @@ export interface BackendCallContext {
  * @returns API-compatible resource
  */
 function toApiResource(resource: SanitizedResource): ApiResource {
-  return {
+  const apiResource: ApiResource = {
     kind: resource.kind,
     region: resource.region,
     sku: resource.sku,
     count: resource.count,
     change: resource.change,
   };
+
+  if (resource.oldSku !== undefined) {
+    apiResource.oldSku = resource.oldSku;
+  }
+  if (resource.oldRegion !== undefined) {
+    apiResource.oldRegion = resource.oldRegion;
+  }
+  if (resource.tags) {
+    apiResource.tags = resource.tags;
+  }
+
+  return apiResource;
 }
 
 /**
@@ -258,15 +269,12 @@ async function callBackend(
     run: callContext.run,
     context: callContext.context,
     resources: apiResources,
-    resolvedRegions: callContext.resolvedRegions,
-    unresolvedLocations: callContext.unresolvedLocations,
-    paramFileUsed: callContext.paramFileUsed,
   };
 
   log.debug(`Calling backend API: ${backendUrl}`);
   log.debug(`Sending ${resources.length} sanitized resource(s)`);
   log.debug(`Repository: ${callContext.repo.fullName}`);
-  log.debug(`PR #${callContext.pr.number}: ${callContext.pr.title}`);
+  log.debug(`PR #${callContext.pr.number}: ${callContext.pr.headSha}`);
 
   try {
     // Create AbortController for timeout
