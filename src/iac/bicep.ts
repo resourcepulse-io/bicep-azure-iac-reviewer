@@ -184,8 +184,8 @@ export async function compileBicepFile(
       '--stdout',
     ]);
 
-    // Check for compilation errors (non-zero exit code or stderr output)
-    if (result.exitCode !== 0 || result.stderr) {
+    // Check for compilation errors (non-zero exit code)
+    if (result.exitCode !== 0) {
       const errorMessage = result.stderr || 'Unknown compilation error';
       log.warning(`Compilation failed for ${filePath}: ${errorMessage}`);
 
@@ -194,6 +194,11 @@ export async function compileBicepFile(
         success: false,
         error: errorMessage,
       };
+    }
+
+    // Log stderr warnings (linter advisories) without failing
+    if (result.stderr) {
+      log.warning(`Compilation warnings for ${filePath}: ${result.stderr}`);
     }
 
     // Parse ARM JSON from stdout

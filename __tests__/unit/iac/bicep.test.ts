@@ -310,7 +310,7 @@ describe('Bicep Module', () => {
       });
     });
 
-    it('should handle compilation errors (stderr output)', async () => {
+    it('should succeed with warnings when stderr has output but exit code is 0', async () => {
       mockExec.executeCommand.mockResolvedValue({
         stdout: '{}',
         stderr: 'Warning: Resource type deprecated',
@@ -321,8 +321,8 @@ describe('Bicep Module', () => {
 
       expect(result).toEqual({
         filePath,
-        success: false,
-        error: 'Warning: Resource type deprecated',
+        success: true,
+        armTemplate: {},
       });
     });
 
