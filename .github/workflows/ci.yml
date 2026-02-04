@@ -61,8 +61,10 @@ jobs:
 
       - name: Check for uncommitted changes in dist/
         run: |
-          if [ -n "$(git status --porcelain dist/)" ]; then
+          git diff --name-only dist/ -- ':!dist/*.map' > /tmp/dist-changes.txt
+          if [ -s /tmp/dist-changes.txt ]; then
             echo "::error::dist/ is out of date. Run 'npm run build' and commit the changes."
-            git diff dist/
+            cat /tmp/dist-changes.txt
+            git diff dist/ -- ':!dist/*.map'
             exit 1
           fi
