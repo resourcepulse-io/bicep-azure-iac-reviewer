@@ -355,15 +355,23 @@ function sanitizeSingleResource(
     sanitized.apiVersion = resource.apiVersion;
   }
 
+  // Use top-level tags from ARM extraction if available (already key-only)
+  if (resource.tags && Object.keys(resource.tags).length > 0) {
+    sanitized.tags = resource.tags;
+  }
+
   // Sanitize properties if present
   if (resource.properties) {
     const safeProperties = sanitizeProperties(resource.properties, removedFields);
     if (safeProperties) {
-      const tags = safeProperties.tags;
-      if (tags && typeof tags === 'object' && !Array.isArray(tags)) {
-        sanitized.tags = tags as Record<string, string>;
-        delete safeProperties.tags;
+      // Also check for tags nested in properties (fallback for non-standard templates)
+      if (!sanitized.tags) {
+        const propTags = safeProperties.tags;
+        if (propTags && typeof propTags === 'object' && !Array.isArray(propTags)) {
+          sanitized.tags = propTags as Record<string, string>;
+        }
       }
+      delete safeProperties.tags;
       if (Object.keys(safeProperties).length > 0) {
         sanitized.safeProperties = safeProperties;
       }
