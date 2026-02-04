@@ -9,6 +9,7 @@ export interface ResourceMetadata {
     region?: string;
     apiVersion?: string;
     properties?: Record<string, unknown>;
+    tags?: Record<string, string>;
 }
 /**
  * Result of extracting resource metadata from ARM JSON

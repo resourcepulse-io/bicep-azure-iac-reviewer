@@ -170,7 +170,9 @@ async function run(): Promise<void> {
           // Modified file - need to diff against base branch version
           log.info(`Performing resource-level diff for modified file: ${compilation.filePath}`);
 
-          const baseContent = await getBaseFileContent(octokit, prContext, compilation.filePath);
+          // Convert absolute path back to repo-relative path for GitHub API
+          const repoRelativePath = path.relative(workspaceRoot, compilation.filePath).replace(/\\/g, '/');
+          const baseContent = await getBaseFileContent(octokit, prContext, repoRelativePath);
 
           if (baseContent) {
             // Compile base version

@@ -30799,11 +30799,36 @@ const log = __importStar(__nccwpck_require__(6555));
  * ARM resource type to normalized kind mapping
  */
 const TYPE_TO_KIND_MAP = {
+    // Compute
     'Microsoft.Compute/virtualMachines': 'vm',
+    'Microsoft.Compute/virtualMachineScaleSets': 'vm',
+    // Storage
+    'Microsoft.Storage/storageAccounts': 'storage',
+    // Web / App Service
     'Microsoft.Web/serverfarms': 'appservice',
     'Microsoft.Web/sites': 'appservice',
+    'Microsoft.Web/sites/functions': 'functions',
+    // Container Apps
+    'Microsoft.App/containerApps': 'containerapp',
+    // Database
     'Microsoft.Sql/servers/databases': 'sqldb',
-    'Microsoft.Storage/storageAccounts': 'storage',
+    'Microsoft.DocumentDB/databaseAccounts': 'cosmosdb',
+    'Microsoft.DBforPostgreSQL/flexibleServers': 'postgres',
+    'Microsoft.DBforPostgreSQL/servers': 'postgres',
+    'Microsoft.Cache/redis': 'redis',
+    // Kubernetes
+    'Microsoft.ContainerService/managedClusters': 'aks',
+    // Key Vault
+    'Microsoft.KeyVault/vaults': 'keyvault',
+    // Application Insights
+    'Microsoft.Insights/components': 'appinsights',
+    // Service Bus
+    'Microsoft.ServiceBus/namespaces': 'servicebus',
+    // Container Registry
+    'Microsoft.ContainerRegistry/registries': 'acr',
+    // API Management
+    'Microsoft.ApiManagement/service': 'apim',
+    // Networking (no pricing but useful for tracking)
     'Microsoft.Network/virtualNetworks': 'vnet',
     'Microsoft.Network/networkSecurityGroups': 'nsg',
 };
@@ -30812,8 +30837,12 @@ const TYPE_TO_KIND_MAP = {
  * @param type - ARM resource type (e.g., "Microsoft.Compute/virtualMachines")
  * @returns Normalized kind (e.g., "vm") or "other" if not mapped
  */
+/**
+ * Case-insensitive lookup map built from TYPE_TO_KIND_MAP
+ */
+const TYPE_TO_KIND_LOOKUP = new Map(Object.entries(TYPE_TO_KIND_MAP).map(([k, v]) => [k.toLowerCase(), v]));
 function normalizeResourceType(type) {
-    return TYPE_TO_KIND_MAP[type] || 'other';
+    return TYPE_TO_KIND_LOOKUP.get(type.toLowerCase()) || 'other';
 }
 /**
  * Extract SKU information from an ARM resource
@@ -30906,6 +30935,24 @@ function extractApiVersion(resource) {
     return undefined;
 }
 /**
+ * Extract tags from an ARM resource (top-level field, not under properties)
+ * Tag values are stripped for privacy - only keys are kept
+ * @param resource - ARM resource object
+ * @returns Tag keys with empty values, or undefined if no tags
+ */
+function extractTags(resource) {
+    if (resource.tags && typeof resource.tags === 'object' && !Array.isArray(resource.tags)) {
+        const tags = resource.tags;
+        const result = {};
+        for (const key of Object.keys(tags)) {
+            // Keep tag keys, strip values for privacy
+            result[key] = '';
+        }
+        return Object.keys(result).length > 0 ? result : undefined;
+    }
+    return undefined;
+}
+/**
  * Extract relevant properties from an ARM resource
  * Only includes non-sensitive properties that may be useful for analysis
  * @param resource - ARM resource object
@@ -30933,6 +30980,7 @@ function extractSingleResourceMetadata(resource, context) {
     const region = extractRegion(resource, context);
     const apiVersion = extractApiVersion(resource);
     const properties = extractProperties(resource);
+    const tags = extractTags(resource);
     const metadata = {
         type,
         kind,
@@ -30949,6 +30997,9 @@ function extractSingleResourceMetadata(resource, context) {
     }
     if (properties !== undefined) {
         metadata.properties = properties;
+    }
+    if (tags !== undefined) {
+        metadata.tags = tags;
     }
     return metadata;
 }
@@ -31992,15 +32043,22 @@ function sanitizeSingleResource(resource, removedFields, options = {}) {
     if (resource.apiVersion) {
         sanitized.apiVersion = resource.apiVersion;
     }
+    // Use top-level tags from ARM extraction if available (already key-only)
+    if (resource.tags && Object.keys(resource.tags).length > 0) {
+        sanitized.tags = resource.tags;
+    }
     // Sanitize properties if present
     if (resource.properties) {
         const safeProperties = sanitizeProperties(resource.properties, removedFields);
         if (safeProperties) {
-            const tags = safeProperties.tags;
-            if (tags && typeof tags === 'object' && !Array.isArray(tags)) {
-                sanitized.tags = tags;
-                delete safeProperties.tags;
+            // Also check for tags nested in properties (fallback for non-standard templates)
+            if (!sanitized.tags) {
+                const propTags = safeProperties.tags;
+                if (propTags && typeof propTags === 'object' && !Array.isArray(propTags)) {
+                    sanitized.tags = propTags;
+                }
             }
+            delete safeProperties.tags;
             if (Object.keys(safeProperties).length > 0) {
                 sanitized.safeProperties = safeProperties;
             }
@@ -32292,7 +32350,9 @@ async function run() {
                 else {
                     // Modified file - need to diff against base branch version
                     log.info(`Performing resource-level diff for modified file: ${compilation.filePath}`);
-                    const baseContent = await (0, prFiles_1.getBaseFileContent)(octokit, prContext, compilation.filePath);
+                    // Convert absolute path back to repo-relative path for GitHub API
+                    const repoRelativePath = path.relative(workspaceRoot, compilation.filePath).replace(/\\/g, '/');
+                    const baseContent = await (0, prFiles_1.getBaseFileContent)(octokit, prContext, repoRelativePath);
                     if (baseContent) {
                         // Compile base version
                         const baseCompilation = await compileBicepContent(bicepCliPath, baseContent, compilation.filePath);

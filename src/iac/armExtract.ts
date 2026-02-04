@@ -11,6 +11,7 @@ export interface ResourceMetadata {
   region?: string;
   apiVersion?: string;
   properties?: Record<string, unknown>;
+  tags?: Record<string, string>;
 }
 
 /**
@@ -42,11 +43,47 @@ interface RegionResolutionContext {
  * ARM resource type to normalized kind mapping
  */
 const TYPE_TO_KIND_MAP: Record<string, string> = {
+  // Compute
   'Microsoft.Compute/virtualMachines': 'vm',
+  'Microsoft.Compute/virtualMachineScaleSets': 'vm',
+
+  // Storage
+  'Microsoft.Storage/storageAccounts': 'storage',
+
+  // Web / App Service
   'Microsoft.Web/serverfarms': 'appservice',
   'Microsoft.Web/sites': 'appservice',
+  'Microsoft.Web/sites/functions': 'functions',
+
+  // Container Apps
+  'Microsoft.App/containerApps': 'containerapp',
+
+  // Database
   'Microsoft.Sql/servers/databases': 'sqldb',
-  'Microsoft.Storage/storageAccounts': 'storage',
+  'Microsoft.DocumentDB/databaseAccounts': 'cosmosdb',
+  'Microsoft.DBforPostgreSQL/flexibleServers': 'postgres',
+  'Microsoft.DBforPostgreSQL/servers': 'postgres',
+  'Microsoft.Cache/redis': 'redis',
+
+  // Kubernetes
+  'Microsoft.ContainerService/managedClusters': 'aks',
+
+  // Key Vault
+  'Microsoft.KeyVault/vaults': 'keyvault',
+
+  // Application Insights
+  'Microsoft.Insights/components': 'appinsights',
+
+  // Service Bus
+  'Microsoft.ServiceBus/namespaces': 'servicebus',
+
+  // Container Registry
+  'Microsoft.ContainerRegistry/registries': 'acr',
+
+  // API Management
+  'Microsoft.ApiManagement/service': 'apim',
+
+  // Networking (no pricing but useful for tracking)
   'Microsoft.Network/virtualNetworks': 'vnet',
   'Microsoft.Network/networkSecurityGroups': 'nsg',
 };
@@ -56,8 +93,15 @@ const TYPE_TO_KIND_MAP: Record<string, string> = {
  * @param type - ARM resource type (e.g., "Microsoft.Compute/virtualMachines")
  * @returns Normalized kind (e.g., "vm") or "other" if not mapped
  */
+/**
+ * Case-insensitive lookup map built from TYPE_TO_KIND_MAP
+ */
+const TYPE_TO_KIND_LOOKUP = new Map<string, string>(
+  Object.entries(TYPE_TO_KIND_MAP).map(([k, v]) => [k.toLowerCase(), v])
+);
+
 function normalizeResourceType(type: string): string {
-  return TYPE_TO_KIND_MAP[type] || 'other';
+  return TYPE_TO_KIND_LOOKUP.get(type.toLowerCase()) || 'other';
 }
 
 /**
@@ -171,6 +215,27 @@ function extractApiVersion(
 }
 
 /**
+ * Extract tags from an ARM resource (top-level field, not under properties)
+ * Tag values are stripped for privacy - only keys are kept
+ * @param resource - ARM resource object
+ * @returns Tag keys with empty values, or undefined if no tags
+ */
+function extractTags(
+  resource: Record<string, unknown>
+): Record<string, string> | undefined {
+  if (resource.tags && typeof resource.tags === 'object' && !Array.isArray(resource.tags)) {
+    const tags = resource.tags as Record<string, unknown>;
+    const result: Record<string, string> = {};
+    for (const key of Object.keys(tags)) {
+      // Keep tag keys, strip values for privacy
+      result[key] = '';
+    }
+    return Object.keys(result).length > 0 ? result : undefined;
+  }
+  return undefined;
+}
+
+/**
  * Extract relevant properties from an ARM resource
  * Only includes non-sensitive properties that may be useful for analysis
  * @param resource - ARM resource object
@@ -205,6 +270,7 @@ function extractSingleResourceMetadata(
   const region = extractRegion(resource, context);
   const apiVersion = extractApiVersion(resource);
   const properties = extractProperties(resource);
+  const tags = extractTags(resource);
 
   const metadata: ResourceMetadata = {
     type,
@@ -223,6 +289,9 @@ function extractSingleResourceMetadata(
   }
   if (properties !== undefined) {
     metadata.properties = properties;
+  }
+  if (tags !== undefined) {
+    metadata.tags = tags;
   }
 
   return metadata;
