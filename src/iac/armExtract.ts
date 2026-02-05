@@ -49,13 +49,27 @@ interface RegionResolutionContext {
  * @returns SKU string if found, undefined otherwise
  */
 function extractSku(resource: Record<string, unknown>): string | undefined {
-  // Try resource.sku.name
+  // Try resource.sku
   if (resource.sku && typeof resource.sku === 'object') {
     const sku = resource.sku as Record<string, unknown>;
+
+    // Redis/Cache: SKU is split across name (tier), family, and capacity → build "{family}{capacity}"
+    // e.g. { name: 'Basic', family: 'C', capacity: 1 } → "C1"
+    if (sku.family && typeof sku.family === 'string' && sku.capacity != null) {
+      return `${sku.family}${sku.capacity}`;
+    }
+
+    // AKS: sku.name is generic ("Base"), pricing uses sku.tier ("Standard")
+    // Prefer tier when name is a generic AKS identifier
     if (sku.name && typeof sku.name === 'string') {
+      const genericSkuNames = ['base', 'free'];
+      if (genericSkuNames.includes((sku.name as string).toLowerCase()) && sku.tier && typeof sku.tier === 'string') {
+        return sku.tier as string;
+      }
       return sku.name;
     }
-    // Try resource.sku.tier
+
+    // Try resource.sku.tier as fallback
     if (sku.tier && typeof sku.tier === 'string') {
       return sku.tier;
     }

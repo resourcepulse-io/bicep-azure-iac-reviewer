@@ -30805,13 +30805,24 @@ const log = __importStar(__nccwpck_require__(6555));
  * @returns SKU string if found, undefined otherwise
  */
 function extractSku(resource) {
-    // Try resource.sku.name
+    // Try resource.sku
     if (resource.sku && typeof resource.sku === 'object') {
         const sku = resource.sku;
+        // Redis/Cache: SKU is split across name (tier), family, and capacity → build "{family}{capacity}"
+        // e.g. { name: 'Basic', family: 'C', capacity: 1 } → "C1"
+        if (sku.family && typeof sku.family === 'string' && sku.capacity != null) {
+            return `${sku.family}${sku.capacity}`;
+        }
+        // AKS: sku.name is generic ("Base"), pricing uses sku.tier ("Standard")
+        // Prefer tier when name is a generic AKS identifier
         if (sku.name && typeof sku.name === 'string') {
+            const genericSkuNames = ['base', 'free'];
+            if (genericSkuNames.includes(sku.name.toLowerCase()) && sku.tier && typeof sku.tier === 'string') {
+                return sku.tier;
+            }
             return sku.name;
         }
-        // Try resource.sku.tier
+        // Try resource.sku.tier as fallback
         if (sku.tier && typeof sku.tier === 'string') {
             return sku.tier;
         }
