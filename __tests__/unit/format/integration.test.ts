@@ -22,7 +22,7 @@ global.fetch = jest.fn();
 describe('Integration: Backend Client + Markdown Formatter', () => {
   const mockResources: SanitizedResource[] = [
     {
-      kind: 'vm',
+      kind: 'Microsoft.Compute/virtualMachines',
       sku: 'Standard_D2s_v3',
       region: 'eastus',
       count: 1,
@@ -30,7 +30,7 @@ describe('Integration: Backend Client + Markdown Formatter', () => {
       type: 'Microsoft.Compute/virtualMachines',
     },
     {
-      kind: 'storage',
+      kind: 'Microsoft.Storage/storageAccounts',
       region: 'westus',
       count: 1,
       change: 'added',
@@ -83,8 +83,8 @@ describe('Integration: Backend Client + Markdown Formatter', () => {
       expect(prComment).toContain(COMMENT_MARKER);
       expect(prComment).toContain('Azure Resource Analysis');
       expect(prComment).toContain('Detected **2** resource(s)');
-      expect(prComment).toContain('Virtual Machines');
-      expect(prComment).toContain('Storage Accounts');
+      expect(prComment).toContain('MICROSOFT.COMPUTE/VIRTUALMACHINES');
+      expect(prComment).toContain('MICROSOFT.STORAGE/STORAGEACCOUNTS');
       expect(prComment).toContain('ResourcePulse');
       expect(prComment).toContain('v1.0.0');
       expect(prComment).toContain('---');
@@ -254,23 +254,23 @@ storage:
 
     it('should handle multiple resource kinds', async () => {
       const resources: SanitizedResource[] = [
-        { kind: 'vm', count: 1, change: 'added', type: 'Microsoft.Compute/virtualMachines' },
-        { kind: 'vm', count: 1, change: 'modified', type: 'Microsoft.Compute/virtualMachines' },
-        { kind: 'vm', count: 1, change: 'added', type: 'Microsoft.Compute/virtualMachines' },
-        { kind: 'storage', count: 1, change: 'added', type: 'Microsoft.Storage/storageAccounts' },
-        { kind: 'storage', count: 1, change: 'modified', type: 'Microsoft.Storage/storageAccounts' },
-        { kind: 'appservice', count: 1, change: 'added', type: 'Microsoft.Web/serverfarms' },
-        { kind: 'sqldb', count: 1, change: 'added', type: 'Microsoft.Sql/servers/databases' },
+        { kind: 'Microsoft.Compute/virtualMachines', count: 1, change: 'added', type: 'Microsoft.Compute/virtualMachines' },
+        { kind: 'Microsoft.Compute/virtualMachines', count: 1, change: 'modified', type: 'Microsoft.Compute/virtualMachines' },
+        { kind: 'Microsoft.Compute/virtualMachines', count: 1, change: 'added', type: 'Microsoft.Compute/virtualMachines' },
+        { kind: 'Microsoft.Storage/storageAccounts', count: 1, change: 'added', type: 'Microsoft.Storage/storageAccounts' },
+        { kind: 'Microsoft.Storage/storageAccounts', count: 1, change: 'modified', type: 'Microsoft.Storage/storageAccounts' },
+        { kind: 'Microsoft.Web/serverfarms', count: 1, change: 'added', type: 'Microsoft.Web/serverfarms' },
+        { kind: 'Microsoft.Sql/servers/databases', count: 1, change: 'added', type: 'Microsoft.Sql/servers/databases' },
       ];
 
       const analysisResult = await analyzeResources(resources);
       const prComment = formatPRComment(analysisResult);
 
       expect(prComment).toContain('Detected **7** resource(s)');
-      expect(prComment).toContain('Virtual Machines**: 3');
-      expect(prComment).toContain('Storage Accounts**: 2');
-      expect(prComment).toContain('App Services**: 1');
-      expect(prComment).toContain('SQL Databases**: 1');
+      expect(prComment).toContain('MICROSOFT.COMPUTE/VIRTUALMACHINES**: 3');
+      expect(prComment).toContain('MICROSOFT.STORAGE/STORAGEACCOUNTS**: 2');
+      expect(prComment).toContain('MICROSOFT.WEB/SERVERFARMS**: 1');
+      expect(prComment).toContain('MICROSOFT.SQL/SERVERS/DATABASES**: 1');
     });
 
     it('should demonstrate the complete API surface', async () => {
@@ -279,7 +279,7 @@ storage:
       // 1. Get sanitized resources (from previous steps in pipeline)
       const resources: SanitizedResource[] = [
         {
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           sku: 'Standard_B2s',
           region: 'eastus',
           count: 1,
@@ -317,7 +317,7 @@ storage:
       const largeResourceList: SanitizedResource[] = Array.from(
         { length: 50 },
         (_, i) => ({
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           sku: `Standard_D${i % 4}s_v3`,
           region: ['eastus', 'westus', 'centralus'][i % 3],
           count: 1,
@@ -330,7 +330,7 @@ storage:
       const prComment = formatPRComment(analysisResult);
 
       expect(prComment).toContain('Detected **50** resource(s)');
-      expect(prComment).toContain('Virtual Machines**: 50');
+      expect(prComment).toContain('MICROSOFT.COMPUTE/VIRTUALMACHINES**: 50');
       expect(prComment.length).toBeGreaterThan(100);
     });
 

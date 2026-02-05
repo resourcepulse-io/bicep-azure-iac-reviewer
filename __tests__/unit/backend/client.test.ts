@@ -16,7 +16,7 @@ global.fetch = jest.fn();
 describe('analyzeResources', () => {
   const mockResources: SanitizedResource[] = [
     {
-      kind: 'vm',
+      kind: 'Microsoft.Compute/virtualMachines',
       sku: 'Standard_D2s_v3',
       region: 'eastus',
       count: 1,
@@ -31,7 +31,7 @@ describe('analyzeResources', () => {
       apiVersion: '2023-01-01',
     },
     {
-      kind: 'storage',
+      kind: 'Microsoft.Storage/storageAccounts',
       region: 'westus',
       count: 1,
       change: 'added',
@@ -41,7 +41,7 @@ describe('analyzeResources', () => {
       },
     },
     {
-      kind: 'appservice',
+      kind: 'Microsoft.Web/sites',
       region: 'eastus',
       count: 1,
       change: 'modified',
@@ -87,9 +87,9 @@ describe('analyzeResources', () => {
       expect(result.source).toBe('local');
       expect(result.markdown).toContain('Azure Resource Analysis');
       expect(result.markdown).toContain('Detected **3** resource(s)');
-      expect(result.markdown).toContain('Virtual Machines');
-      expect(result.markdown).toContain('Storage Accounts');
-      expect(result.markdown).toContain('App Services');
+      expect(result.markdown).toContain('MICROSOFT.COMPUTE/VIRTUALMACHINES');
+      expect(result.markdown).toContain('MICROSOFT.STORAGE/STORAGEACCOUNTS');
+      expect(result.markdown).toContain('MICROSOFT.WEB/SITES');
       expect(result.markdown).toContain('Want detailed cost estimates');
       expect(result.markdown).toContain('api_key');
 
@@ -115,20 +115,20 @@ describe('analyzeResources', () => {
 
     it('should format resource counts correctly by kind', async () => {
       const resources: SanitizedResource[] = [
-        { kind: 'vm', count: 1, change: 'added', type: 'Microsoft.Compute/virtualMachines' },
-        { kind: 'vm', count: 1, change: 'modified', type: 'Microsoft.Compute/virtualMachines' },
-        { kind: 'storage', count: 1, change: 'added', type: 'Microsoft.Storage/storageAccounts' },
-        { kind: 'appservice', count: 1, change: 'added', type: 'Microsoft.Web/serverfarms' },
-        { kind: 'appservice', count: 1, change: 'modified', type: 'Microsoft.Web/serverfarms' },
-        { kind: 'appservice', count: 1, change: 'added', type: 'Microsoft.Web/serverfarms' },
+        { kind: 'Microsoft.Compute/virtualMachines', count: 1, change: 'added', type: 'Microsoft.Compute/virtualMachines' },
+        { kind: 'Microsoft.Compute/virtualMachines', count: 1, change: 'modified', type: 'Microsoft.Compute/virtualMachines' },
+        { kind: 'Microsoft.Storage/storageAccounts', count: 1, change: 'added', type: 'Microsoft.Storage/storageAccounts' },
+        { kind: 'Microsoft.Web/serverfarms', count: 1, change: 'added', type: 'Microsoft.Web/serverfarms' },
+        { kind: 'Microsoft.Web/serverfarms', count: 1, change: 'modified', type: 'Microsoft.Web/serverfarms' },
+        { kind: 'Microsoft.Web/serverfarms', count: 1, change: 'added', type: 'Microsoft.Web/serverfarms' },
       ];
 
       const result = await analyzeResources(resources);
 
       expect(result.markdown).toContain('Detected **6** resource(s)');
-      expect(result.markdown).toContain('App Services**: 3');
-      expect(result.markdown).toContain('Virtual Machines**: 2');
-      expect(result.markdown).toContain('Storage Accounts**: 1');
+      expect(result.markdown).toContain('MICROSOFT.WEB/SERVERFARMS**: 3');
+      expect(result.markdown).toContain('MICROSOFT.COMPUTE/VIRTUALMACHINES**: 2');
+      expect(result.markdown).toContain('MICROSOFT.STORAGE/STORAGEACCOUNTS**: 1');
     });
 
     it('should handle empty resource array', async () => {
@@ -285,7 +285,7 @@ describe('analyzeResources', () => {
 
       // Verify API resource format
       expect(requestBody.resources[0]).toEqual({
-        kind: 'vm',
+        kind: 'Microsoft.Compute/virtualMachines',
         region: 'eastus',
         sku: 'Standard_D2s_v3',
         count: 1,
@@ -468,7 +468,7 @@ describe('analyzeResources', () => {
       // Create resources with forbidden fields (should fail validation)
       const sensitiveResources: SanitizedResource[] = [
         {
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           count: 1,
           change: 'added',
           // @ts-expect-error - Testing privacy violation
@@ -495,7 +495,7 @@ describe('analyzeResources', () => {
     it('should refuse to send resources with GUID patterns', async () => {
       const sensitiveResources: SanitizedResource[] = [
         {
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           count: 1,
           change: 'added',
           safeProperties: {
@@ -520,7 +520,7 @@ describe('analyzeResources', () => {
     it('should handle single resource', async () => {
       const singleResource: SanitizedResource[] = [
         {
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           count: 1,
           change: 'added',
           type: 'Microsoft.Storage/storageAccounts',
@@ -531,19 +531,19 @@ describe('analyzeResources', () => {
 
       expect(result.success).toBe(true);
       expect(result.markdown).toContain('Detected **1** resource(s)');
-      expect(result.markdown).toContain('Storage Accounts**: 1');
+      expect(result.markdown).toContain('MICROSOFT.STORAGE/STORAGEACCOUNTS**: 1');
     });
 
     it('should handle resources with unknown kinds', async () => {
       const resources: SanitizedResource[] = [
         {
-          kind: 'other',
+          kind: 'Microsoft.CustomProvider/customResources',
           count: 1,
           change: 'added',
           type: 'Microsoft.CustomProvider/customResources',
         },
         {
-          kind: 'unknown_kind',
+          kind: 'Microsoft.CustomProvider/anotherResource',
           count: 1,
           change: 'modified',
           type: 'Microsoft.CustomProvider/anotherResource',
@@ -553,8 +553,8 @@ describe('analyzeResources', () => {
       const result = await analyzeResources(resources);
 
       expect(result.success).toBe(true);
-      expect(result.markdown).toContain('Other Resources');
-      expect(result.markdown).toContain('UNKNOWN_KIND');
+      expect(result.markdown).toContain('MICROSOFT.CUSTOMPROVIDER/CUSTOMRESOURCES');
+      expect(result.markdown).toContain('MICROSOFT.CUSTOMPROVIDER/ANOTHERRESOURCE');
     });
 
     it('should handle empty string API key as no API key', async () => {

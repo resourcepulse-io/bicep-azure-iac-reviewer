@@ -34,11 +34,11 @@ describe('ARM Extract Module', () => {
       const result = extractResourceMetadata(armJson);
 
       expect(result.resourceCount).toBe(1);
-      expect(result.kindsDetected).toEqual(['storage']);
+      expect(result.kindsDetected).toEqual(['Microsoft.Storage/storageAccounts']);
       expect(result.resources).toHaveLength(1);
       expect(result.resources[0]).toEqual({
         type: 'Microsoft.Storage/storageAccounts',
-        kind: 'storage',
+        kind: 'Microsoft.Storage/storageAccounts',
         sku: 'Standard_LRS',
         region: 'eastus',
         apiVersion: '2021-04-01',
@@ -48,7 +48,7 @@ describe('ARM Extract Module', () => {
       });
     });
 
-    it('should map resource types to kinds correctly', () => {
+    it('should pass through resource types as kinds correctly', () => {
       const armJson = JSON.stringify({
         $schema:
           'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
@@ -68,14 +68,14 @@ describe('ARM Extract Module', () => {
       const result = extractResourceMetadata(armJson);
 
       expect(result.resourceCount).toBe(8);
-      expect(result.resources[0].kind).toBe('vm');
-      expect(result.resources[1].kind).toBe('appservice');
-      expect(result.resources[2].kind).toBe('appservice');
-      expect(result.resources[3].kind).toBe('sqldb');
-      expect(result.resources[4].kind).toBe('storage');
-      expect(result.resources[5].kind).toBe('vnet');
-      expect(result.resources[6].kind).toBe('nsg');
-      expect(result.resources[7].kind).toBe('other');
+      expect(result.resources[0].kind).toBe('Microsoft.Compute/virtualMachines');
+      expect(result.resources[1].kind).toBe('Microsoft.Web/serverfarms');
+      expect(result.resources[2].kind).toBe('Microsoft.Web/sites');
+      expect(result.resources[3].kind).toBe('Microsoft.Sql/servers/databases');
+      expect(result.resources[4].kind).toBe('Microsoft.Storage/storageAccounts');
+      expect(result.resources[5].kind).toBe('Microsoft.Network/virtualNetworks');
+      expect(result.resources[6].kind).toBe('Microsoft.Network/networkSecurityGroups');
+      expect(result.resources[7].kind).toBe('Microsoft.Unknown/resource');
     });
 
     it('should extract SKU from sku.name', () => {
@@ -204,7 +204,7 @@ describe('ARM Extract Module', () => {
 
       expect(result.resources[0]).toEqual({
         type: 'Microsoft.Network/virtualNetworks',
-        kind: 'vnet',
+        kind: 'Microsoft.Network/virtualNetworks',
         region: 'westus',
         apiVersion: '2021-03-01',
       });
@@ -275,9 +275,9 @@ describe('ARM Extract Module', () => {
       const result = extractResourceMetadata(armJson);
 
       expect(result.resourceCount).toBe(3);
-      expect(result.resources[0].kind).toBe('vnet');
-      expect(result.resources[1].kind).toBe('other');
-      expect(result.resources[2].kind).toBe('other');
+      expect(result.resources[0].kind).toBe('Microsoft.Network/virtualNetworks');
+      expect(result.resources[1].kind).toBe('Microsoft.Network/virtualNetworks/subnets');
+      expect(result.resources[2].kind).toBe('Microsoft.Network/virtualNetworks/subnets');
     });
 
     it('should handle deeply nested resources', () => {
@@ -308,9 +308,9 @@ describe('ARM Extract Module', () => {
       const result = extractResourceMetadata(armJson);
 
       expect(result.resourceCount).toBe(3);
-      expect(result.resources[0].kind).toBe('vm');
-      expect(result.resources[1].kind).toBe('other');
-      expect(result.resources[2].kind).toBe('other');
+      expect(result.resources[0].kind).toBe('Microsoft.Compute/virtualMachines');
+      expect(result.resources[1].kind).toBe('Microsoft.Compute/virtualMachines/extensions');
+      expect(result.resources[2].kind).toBe('Microsoft.Compute/virtualMachines/extensions/config');
     });
 
     it('should handle empty resources array', () => {
@@ -381,7 +381,7 @@ describe('ARM Extract Module', () => {
 
       // Should skip null, string, and number, only process valid object
       expect(result.resourceCount).toBe(1);
-      expect(result.resources[0].kind).toBe('storage');
+      expect(result.resources[0].kind).toBe('Microsoft.Storage/storageAccounts');
     });
 
     it('should handle resources without type', () => {
@@ -401,7 +401,7 @@ describe('ARM Extract Module', () => {
 
       expect(result.resourceCount).toBe(1);
       expect(result.resources[0].type).toBe('unknown');
-      expect(result.resources[0].kind).toBe('other');
+      expect(result.resources[0].kind).toBe('unknown');
     });
 
     it('should detect multiple unique kinds', () => {
@@ -421,9 +421,9 @@ describe('ARM Extract Module', () => {
 
       expect(result.resourceCount).toBe(4);
       expect(result.kindsDetected).toHaveLength(3);
-      expect(result.kindsDetected).toContain('vm');
-      expect(result.kindsDetected).toContain('storage');
-      expect(result.kindsDetected).toContain('vnet');
+      expect(result.kindsDetected).toContain('Microsoft.Compute/virtualMachines');
+      expect(result.kindsDetected).toContain('Microsoft.Storage/storageAccounts');
+      expect(result.kindsDetected).toContain('Microsoft.Network/virtualNetworks');
     });
 
     it('should extract properties as shallow copy', () => {
@@ -510,26 +510,26 @@ describe('ARM Extract Module', () => {
       const result = extractResourceMetadata(armJson);
 
       expect(result.resourceCount).toBe(4);
-      expect(result.kindsDetected).toContain('vnet');
-      expect(result.kindsDetected).toContain('vm');
-      expect(result.kindsDetected).toContain('storage');
-      expect(result.kindsDetected).toContain('other');
+      expect(result.kindsDetected).toContain('Microsoft.Network/virtualNetworks');
+      expect(result.kindsDetected).toContain('Microsoft.Compute/virtualMachines');
+      expect(result.kindsDetected).toContain('Microsoft.Storage/storageAccounts');
+      expect(result.kindsDetected).toContain('Microsoft.Network/virtualNetworks/subnets');
 
       // Check vnet
-      expect(result.resources[0].kind).toBe('vnet');
+      expect(result.resources[0].kind).toBe('Microsoft.Network/virtualNetworks');
       expect(result.resources[0].region).toBe('eastus');
       expect(result.resources[0].properties?.addressSpace).toBeDefined();
 
       // Check nested subnet
-      expect(result.resources[1].kind).toBe('other');
+      expect(result.resources[1].kind).toBe('Microsoft.Network/virtualNetworks/subnets');
 
       // Check VM
-      expect(result.resources[2].kind).toBe('vm');
+      expect(result.resources[2].kind).toBe('Microsoft.Compute/virtualMachines');
       expect(result.resources[2].sku).toBe('Standard_D2s_v3');
       expect(result.resources[2].region).toBe('eastus');
 
       // Check storage
-      expect(result.resources[3].kind).toBe('storage');
+      expect(result.resources[3].kind).toBe('Microsoft.Storage/storageAccounts');
       expect(result.resources[3].sku).toBe('Standard_LRS');
       expect(result.resources[3].region).toBe('eastus');
     });
