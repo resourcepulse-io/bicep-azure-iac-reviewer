@@ -4,12 +4,11 @@ import { ResourceMetadata } from '../../../src/iac/armExtract';
 describe('Resource Diff Module', () => {
   const createResource = (
     type: string,
-    kind: string,
     sku?: string,
     region?: string
   ): ResourceMetadata => ({
     type,
-    kind,
+    kind: type, // kind now equals type
     sku,
     region,
   });
@@ -19,7 +18,7 @@ describe('Resource Diff Module', () => {
       it('should detect resources added to head (not in base)', () => {
         const baseResources: ResourceMetadata[] = [];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
         ];
 
         const result = diffResources(baseResources, headResources);
@@ -30,7 +29,7 @@ describe('Resource Diff Module', () => {
         expect(result.diffs).toHaveLength(1);
         expect(result.diffs[0]).toMatchObject({
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           change: 'added',
           newSku: 'Standard_LRS',
           newRegion: 'eastus',
@@ -40,8 +39,8 @@ describe('Resource Diff Module', () => {
       it('should detect multiple added resources', () => {
         const baseResources: ResourceMetadata[] = [];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
-          createResource('Microsoft.Compute/virtualMachines', 'vm', 'Standard_D2s_v3', 'westus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Compute/virtualMachines', 'Standard_D2s_v3', 'westus'),
         ];
 
         const result = diffResources(baseResources, headResources);
@@ -54,11 +53,11 @@ describe('Resource Diff Module', () => {
 
       it('should detect added resource when base has other resources', () => {
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
         ];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
-          createResource('Microsoft.Compute/virtualMachines', 'vm', 'Standard_D2s_v3', 'westus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Compute/virtualMachines', 'Standard_D2s_v3', 'westus'),
         ];
 
         const result = diffResources(baseResources, headResources);
@@ -74,7 +73,7 @@ describe('Resource Diff Module', () => {
     describe('Removed Resources', () => {
       it('should detect resources removed from base (not in head)', () => {
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
         ];
         const headResources: ResourceMetadata[] = [];
 
@@ -86,7 +85,7 @@ describe('Resource Diff Module', () => {
         expect(result.diffs).toHaveLength(1);
         expect(result.diffs[0]).toMatchObject({
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           change: 'removed',
           oldSku: 'Standard_LRS',
           oldRegion: 'eastus',
@@ -95,8 +94,8 @@ describe('Resource Diff Module', () => {
 
       it('should detect multiple removed resources', () => {
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
-          createResource('Microsoft.Compute/virtualMachines', 'vm', 'Standard_D2s_v3', 'westus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Compute/virtualMachines', 'Standard_D2s_v3', 'westus'),
         ];
         const headResources: ResourceMetadata[] = [];
 
@@ -110,11 +109,11 @@ describe('Resource Diff Module', () => {
 
       it('should detect removed resource when head has other resources', () => {
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
-          createResource('Microsoft.Compute/virtualMachines', 'vm', 'Standard_D2s_v3', 'westus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Compute/virtualMachines', 'Standard_D2s_v3', 'westus'),
         ];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
         ];
 
         const result = diffResources(baseResources, headResources);
@@ -130,10 +129,10 @@ describe('Resource Diff Module', () => {
     describe('Modified Resources (SKU Changes)', () => {
       it('should detect SKU upgrade', () => {
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Web/serverfarms', 'appservice', 'B1', 'eastus'),
+          createResource('Microsoft.Web/serverfarms', 'B1', 'eastus'),
         ];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Web/serverfarms', 'appservice', 'P1v3', 'eastus'),
+          createResource('Microsoft.Web/serverfarms', 'P1v3', 'eastus'),
         ];
 
         const result = diffResources(baseResources, headResources);
@@ -154,10 +153,10 @@ describe('Resource Diff Module', () => {
 
       it('should detect SKU downgrade', () => {
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_GRS', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_GRS', 'eastus'),
         ];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
         ];
 
         const result = diffResources(baseResources, headResources);
@@ -172,10 +171,10 @@ describe('Resource Diff Module', () => {
 
       it('should detect region change', () => {
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
         ];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'westus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'westus'),
         ];
 
         const result = diffResources(baseResources, headResources);
@@ -190,10 +189,10 @@ describe('Resource Diff Module', () => {
 
       it('should detect combined SKU and region change', () => {
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
         ];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_GRS', 'westeurope'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_GRS', 'westeurope'),
         ];
 
         const result = diffResources(baseResources, headResources);
@@ -212,10 +211,10 @@ describe('Resource Diff Module', () => {
     describe('Unchanged Resources', () => {
       it('should not report resources that are identical', () => {
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
         ];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
         ];
 
         const result = diffResources(baseResources, headResources);
@@ -229,12 +228,12 @@ describe('Resource Diff Module', () => {
 
       it('should handle multiple unchanged resources', () => {
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
-          createResource('Microsoft.Compute/virtualMachines', 'vm', 'Standard_D2s_v3', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Compute/virtualMachines', 'Standard_D2s_v3', 'eastus'),
         ];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
-          createResource('Microsoft.Compute/virtualMachines', 'vm', 'Standard_D2s_v3', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Compute/virtualMachines', 'Standard_D2s_v3', 'eastus'),
         ];
 
         const result = diffResources(baseResources, headResources);
@@ -247,14 +246,14 @@ describe('Resource Diff Module', () => {
     describe('Complex Scenarios', () => {
       it('should handle mixed changes (add, remove, modify)', () => {
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
-          createResource('Microsoft.Web/serverfarms', 'appservice', 'B1', 'eastus'),
-          createResource('Microsoft.Sql/servers/databases', 'sqldb', 'Basic', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Web/serverfarms', 'B1', 'eastus'),
+          createResource('Microsoft.Sql/servers/databases', 'Basic', 'eastus'),
         ];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_GRS', 'eastus'), // modified (SKU)
-          createResource('Microsoft.Web/serverfarms', 'appservice', 'B1', 'eastus'), // unchanged
-          createResource('Microsoft.Compute/virtualMachines', 'vm', 'Standard_D2s_v3', 'westus'), // added
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_GRS', 'eastus'), // modified (SKU)
+          createResource('Microsoft.Web/serverfarms', 'B1', 'eastus'), // unchanged
+          createResource('Microsoft.Compute/virtualMachines', 'Standard_D2s_v3', 'westus'), // added
           // sql_db removed
         ];
 
@@ -286,7 +285,7 @@ describe('Resource Diff Module', () => {
 
       it('should handle resources with missing optional fields', () => {
         const baseResources: ResourceMetadata[] = [
-          { type: 'Microsoft.Storage/storageAccounts', kind: 'storage' },
+          { type: 'Microsoft.Storage/storageAccounts', kind: 'Microsoft.Storage/storageAccounts' },
         ];
         const headResources: ResourceMetadata[] = [
           { type: 'Microsoft.Storage/storageAccounts', kind: 'storage', sku: 'Standard_LRS' },
@@ -307,10 +306,10 @@ describe('Resource Diff Module', () => {
         // When a resource is renamed, ARM sees it as different resources
         // This is expected behavior per the documentation
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
         ];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_GRS', 'westus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_GRS', 'westus'),
         ];
 
         const result = diffResources(baseResources, headResources);
@@ -324,12 +323,12 @@ describe('Resource Diff Module', () => {
       it('should handle resources with same type but different SKUs in base', () => {
         // Multiple storage accounts with different SKUs
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_GRS', 'westus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_GRS', 'westus'),
         ];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
-          createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_GRS', 'westus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
+          createResource('Microsoft.Storage/storageAccounts', 'Standard_GRS', 'westus'),
         ];
 
         const result = diffResources(baseResources, headResources);
@@ -342,7 +341,7 @@ describe('Resource Diff Module', () => {
         const baseResources: ResourceMetadata[] = [
           {
             type: 'Microsoft.Storage/storageAccounts',
-            kind: 'storage',
+            kind: 'Microsoft.Storage/storageAccounts',
             sku: 'Standard_LRS',
             region: 'eastus',
             properties: { tier: 'Standard' },
@@ -351,7 +350,7 @@ describe('Resource Diff Module', () => {
         const headResources: ResourceMetadata[] = [
           {
             type: 'Microsoft.Storage/storageAccounts',
-            kind: 'storage',
+            kind: 'Microsoft.Storage/storageAccounts',
             sku: 'Standard_GRS',
             region: 'eastus',
             properties: { tier: 'Standard', replication: 'GRS' },
@@ -366,15 +365,15 @@ describe('Resource Diff Module', () => {
 
       it('should preserve kind in diff output', () => {
         const baseResources: ResourceMetadata[] = [
-          createResource('Microsoft.Compute/virtualMachines', 'vm', 'Standard_D2s_v3', 'eastus'),
+          createResource('Microsoft.Compute/virtualMachines', 'Standard_D2s_v3', 'eastus'),
         ];
         const headResources: ResourceMetadata[] = [
-          createResource('Microsoft.Compute/virtualMachines', 'vm', 'Standard_D4s_v3', 'eastus'),
+          createResource('Microsoft.Compute/virtualMachines', 'Standard_D4s_v3', 'eastus'),
         ];
 
         const result = diffResources(baseResources, headResources);
 
-        expect(result.diffs[0].kind).toBe('vm');
+        expect(result.diffs[0].kind).toBe('Microsoft.Compute/virtualMachines');
       });
     });
   });
@@ -393,14 +392,14 @@ describe('Resource Diff Module', () => {
 
     it('should have counts that sum correctly', () => {
       const baseResources: ResourceMetadata[] = [
-        createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_LRS', 'eastus'),
-        createResource('Microsoft.Web/serverfarms', 'appservice', 'B1', 'eastus'),
-        createResource('Microsoft.Sql/servers/databases', 'sqldb', 'Basic', 'eastus'),
+        createResource('Microsoft.Storage/storageAccounts', 'Standard_LRS', 'eastus'),
+        createResource('Microsoft.Web/serverfarms', 'B1', 'eastus'),
+        createResource('Microsoft.Sql/servers/databases', 'Basic', 'eastus'),
       ];
       const headResources: ResourceMetadata[] = [
-        createResource('Microsoft.Storage/storageAccounts', 'storage', 'Standard_GRS', 'eastus'),
-        createResource('Microsoft.Web/serverfarms', 'appservice', 'B1', 'eastus'),
-        createResource('Microsoft.Compute/virtualMachines', 'vm', 'Standard_D2s_v3', 'westus'),
+        createResource('Microsoft.Storage/storageAccounts', 'Standard_GRS', 'eastus'),
+        createResource('Microsoft.Web/serverfarms', 'B1', 'eastus'),
+        createResource('Microsoft.Compute/virtualMachines', 'Standard_D2s_v3', 'westus'),
       ];
 
       const result = diffResources(baseResources, headResources);

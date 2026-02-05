@@ -23,7 +23,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Compute/virtualMachines',
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           properties: {
             name: 'my-production-vm',
             vmSize: 'Standard_D2s_v3',
@@ -41,7 +41,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           properties: {
             id: '/subscriptions/abc123/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/mystorageacct',
           },
@@ -58,7 +58,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Web/sites',
-          kind: 'appservice',
+          kind: 'Microsoft.Web/sites',
           properties: {
             resourceId:
               '/subscriptions/xyz/resourceGroups/mygroup/providers/Microsoft.Web/sites/myapp',
@@ -76,7 +76,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Compute/virtualMachines',
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           properties: {
             dependsOn: [
               'Microsoft.Network/networkInterfaces/nic1',
@@ -96,7 +96,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           properties: {
             tags: {
               owner: 'john.doe@company.com',
@@ -121,7 +121,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Sql/servers/databases',
-          kind: 'sqldb',
+          kind: 'Microsoft.Sql/servers/databases',
           properties: {
             connectionString:
               'Server=tcp:myserver.database.windows.net;Database=mydb;User ID=admin;Password=P@ssw0rd;',
@@ -139,7 +139,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Sql/servers',
-          kind: 'other',
+          kind: 'Microsoft.Sql/servers',
           properties: {
             administratorLogin: 'admin',
             administratorPassword: 'SuperSecret123!',
@@ -159,7 +159,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.KeyVault/vaults',
-          kind: 'other',
+          kind: 'Microsoft.KeyVault/vaults',
           properties: {
             secretValue: 'my-secret-value',
             clientSecret: 'abc123def456',
@@ -179,7 +179,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           properties: {
             primaryKey: 'base64encodedkey==',
             apiKey: 'sk-1234567890abcdef',
@@ -199,7 +199,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Compute/virtualMachines',
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           properties: {
             credentials: {
               username: 'admin',
@@ -219,7 +219,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.ManagedIdentity/userAssignedIdentities',
-          kind: 'other',
+          kind: 'Microsoft.ManagedIdentity/userAssignedIdentities',
           properties: {
             principalId: '12345678-1234-1234-1234-123456789012',
             tenantId: '87654321-4321-4321-4321-210987654321',
@@ -239,7 +239,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Resources/resourceGroups',
-          kind: 'other',
+          kind: 'Microsoft.Resources/resourceGroups',
           properties: {
             subscriptionId: '12345678-1234-1234-1234-123456789012',
           },
@@ -256,7 +256,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Compute/virtualMachines',
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           properties: {
             osProfile: {
               computerName: 'my-vm-hostname',
@@ -283,7 +283,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           properties: {
             storageAccountKey: 'key123',
             accountSecret: 'secret456',
@@ -305,7 +305,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Compute/virtualMachines',
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           sku: 'Standard_D2s_v3',
         },
       ];
@@ -319,7 +319,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           region: 'eastus',
         },
       ];
@@ -333,21 +333,21 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Compute/virtualMachines',
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
         },
       ];
 
       const result = sanitizeResources(resources);
 
       expect(result.resources[0].type).toBe('Microsoft.Compute/virtualMachines');
-      expect(result.resources[0].kind).toBe('vm');
+      expect(result.resources[0].kind).toBe('Microsoft.Compute/virtualMachines');
     });
 
     it('should preserve API version', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           apiVersion: '2023-01-01',
         },
       ];
@@ -361,7 +361,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Compute/virtualMachines',
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           properties: {
             cores: 4,
             memory: 16384,
@@ -381,7 +381,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           properties: {
             enabled: true,
             publicAccess: false,
@@ -401,7 +401,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           properties: {
             status: 'enabled',
             accessTier: 'Hot',
@@ -421,7 +421,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Web/serverfarms',
-          kind: 'appservice',
+          kind: 'Microsoft.Web/serverfarms',
           properties: {
             capacity: 2,
             tier: 'Standard',
@@ -441,7 +441,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           properties: {
             customDomain: null,
           },
@@ -459,7 +459,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           properties: {
             resourceGuid: '12345678-1234-1234-1234-123456789012',
           },
@@ -476,7 +476,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Network/virtualNetworks',
-          kind: 'vnet',
+          kind: 'Microsoft.Network/virtualNetworks',
           properties: {
             subnetRef:
               '/subscriptions/abc/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet1',
@@ -494,7 +494,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           properties: {
             primaryConnectionString:
               'DefaultEndpointsProtocol=https;AccountName=mystorageacct;AccountKey=abc123==;EndpointSuffix=core.windows.net',
@@ -512,7 +512,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           properties: {
             storageKey:
               'YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY3ODkwYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo=',
@@ -530,7 +530,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           properties: {
             description:
               'This is a very long description that contains identifying information about our production storage account',
@@ -548,7 +548,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Network/networkSecurityGroups',
-          kind: 'nsg',
+          kind: 'Microsoft.Network/networkSecurityGroups',
           properties: {
             allowedIpRanges: [
               '10.0.0.0/24',
@@ -649,7 +649,7 @@ describe('sanitizeResources', () => {
         resources: [
           {
             type: 'Microsoft.Compute/virtualMachines',
-            kind: 'vm',
+            kind: 'Microsoft.Compute/virtualMachines',
             sku: 'Standard_D2s_v3',
             region: 'eastus',
             properties: {
@@ -672,7 +672,7 @@ describe('sanitizeResources', () => {
         resources: [
           {
             type: 'Microsoft.Compute/virtualMachines',
-            kind: 'vm',
+            kind: 'Microsoft.Compute/virtualMachines',
             properties: {
               network: {
                 config: {
@@ -696,7 +696,7 @@ describe('sanitizeResources', () => {
         resources: [
           {
             type: 'Microsoft.Network/networkSecurityGroups',
-            kind: 'nsg',
+            kind: 'Microsoft.Network/networkSecurityGroups',
             rules: [
               {
                 id: '12345678-1234-1234-1234-123456789012',
@@ -728,7 +728,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
         },
       ];
 
@@ -737,7 +737,7 @@ describe('sanitizeResources', () => {
       expect(result.resources).toHaveLength(1);
       expect(result.resources[0]).toEqual({
         type: 'Microsoft.Storage/storageAccounts',
-        kind: 'storage',
+        kind: 'Microsoft.Storage/storageAccounts',
         count: 1,
         change: 'modified',
       });
@@ -747,7 +747,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           properties: {},
         },
       ];
@@ -762,17 +762,17 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Compute/virtualMachines',
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           sku: 'Standard_D2s_v3',
         },
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           region: 'eastus',
         },
         {
           type: 'Microsoft.Web/sites',
-          kind: 'appservice',
+          kind: 'Microsoft.Web/sites',
           properties: {
             enabled: true,
           },
@@ -789,7 +789,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Compute/virtualMachines',
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           properties: {
             name: 'vm1',
             id: 'id1',
@@ -797,7 +797,7 @@ describe('sanitizeResources', () => {
         },
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           properties: {
             name: 'storage1',
             password: 'secret',
@@ -820,7 +820,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Compute/virtualMachines',
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           sku: 'Standard_D2s_v3',
           region: 'eastus',
           apiVersion: '2023-01-01',
@@ -838,7 +838,7 @@ describe('sanitizeResources', () => {
         },
         {
           type: 'Microsoft.Storage/storageAccounts',
-          kind: 'storage',
+          kind: 'Microsoft.Storage/storageAccounts',
           properties: {
             name: 'mystorageacct',
             connectionString: 'AccountName=test;AccountKey=abc123;',
@@ -859,7 +859,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Compute/virtualMachines',
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           properties: {
             // Try to sneak in sensitive data with various naming schemes
             user_name: 'admin@company.com',
@@ -898,7 +898,7 @@ describe('sanitizeResources', () => {
       const resources: ResourceMetadata[] = [
         {
           type: 'Microsoft.Compute/virtualMachines',
-          kind: 'vm',
+          kind: 'Microsoft.Compute/virtualMachines',
           properties: {
             level1: {
               cores: 4,

@@ -30796,55 +30796,6 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.extractResourceMetadata = extractResourceMetadata;
 const log = __importStar(__nccwpck_require__(6555));
 /**
- * ARM resource type to normalized kind mapping
- */
-const TYPE_TO_KIND_MAP = {
-    // Compute
-    'Microsoft.Compute/virtualMachines': 'vm',
-    'Microsoft.Compute/virtualMachineScaleSets': 'vm',
-    // Storage
-    'Microsoft.Storage/storageAccounts': 'storage',
-    // Web / App Service
-    'Microsoft.Web/serverfarms': 'appservice',
-    'Microsoft.Web/sites': 'appservice',
-    'Microsoft.Web/sites/functions': 'functions',
-    // Container Apps
-    'Microsoft.App/containerApps': 'containerapp',
-    // Database
-    'Microsoft.Sql/servers/databases': 'sqldb',
-    'Microsoft.DocumentDB/databaseAccounts': 'cosmosdb',
-    'Microsoft.DBforPostgreSQL/flexibleServers': 'postgres',
-    'Microsoft.DBforPostgreSQL/servers': 'postgres',
-    'Microsoft.Cache/redis': 'redis',
-    // Kubernetes
-    'Microsoft.ContainerService/managedClusters': 'aks',
-    // Key Vault
-    'Microsoft.KeyVault/vaults': 'keyvault',
-    // Application Insights
-    'Microsoft.Insights/components': 'appinsights',
-    // Service Bus
-    'Microsoft.ServiceBus/namespaces': 'servicebus',
-    // Container Registry
-    'Microsoft.ContainerRegistry/registries': 'acr',
-    // API Management
-    'Microsoft.ApiManagement/service': 'apim',
-    // Networking (no pricing but useful for tracking)
-    'Microsoft.Network/virtualNetworks': 'vnet',
-    'Microsoft.Network/networkSecurityGroups': 'nsg',
-};
-/**
- * Normalize ARM resource type to a simplified kind
- * @param type - ARM resource type (e.g., "Microsoft.Compute/virtualMachines")
- * @returns Normalized kind (e.g., "vm") or "other" if not mapped
- */
-/**
- * Case-insensitive lookup map built from TYPE_TO_KIND_MAP
- */
-const TYPE_TO_KIND_LOOKUP = new Map(Object.entries(TYPE_TO_KIND_MAP).map(([k, v]) => [k.toLowerCase(), v]));
-function normalizeResourceType(type) {
-    return TYPE_TO_KIND_LOOKUP.get(type.toLowerCase()) || 'other';
-}
-/**
  * Extract SKU information from an ARM resource
  * SKU can be in various formats:
  * - { sku: { name: "Standard_D2s_v3" } }
@@ -30876,6 +30827,13 @@ function extractSku(resource) {
             const sku = properties.sku;
             if (sku.name && typeof sku.name === 'string') {
                 return sku.name;
+            }
+        }
+        // Try resource.properties.hardwareProfile.vmSize (VMs)
+        if (properties.hardwareProfile && typeof properties.hardwareProfile === 'object') {
+            const hw = properties.hardwareProfile;
+            if (hw.vmSize && typeof hw.vmSize === 'string') {
+                return hw.vmSize;
             }
         }
     }
@@ -30975,7 +30933,8 @@ function extractSingleResourceMetadata(resource, context) {
     const type = resource.type && typeof resource.type === 'string'
         ? resource.type
         : 'unknown';
-    const kind = normalizeResourceType(type);
+    // Pass raw ARM type as kind - the backend handles mapping to short names
+    const kind = type;
     const sku = extractSku(resource);
     const region = extractRegion(resource, context);
     const apiVersion = extractApiVersion(resource);
