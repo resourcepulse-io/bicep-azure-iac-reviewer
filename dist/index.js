@@ -31621,6 +31621,7 @@ function diffResources(baseResources, headResources) {
                             oldRegion: unmatchedBase.region,
                             newRegion: headResource.region,
                             properties: headResource.properties,
+                            tags: headResource.tags,
                         });
                         modified++;
                         log.debug(`Modified: ${headResource.type} (${unmatchedBase.sku} -> ${headResource.sku})`);
@@ -31640,6 +31641,7 @@ function diffResources(baseResources, headResources) {
                 newSku: headResource.sku,
                 newRegion: headResource.region,
                 properties: headResource.properties,
+                tags: headResource.tags,
             });
             added++;
             log.debug(`Added: ${headResource.type} (${headResource.sku || 'no sku'})`);
@@ -31658,6 +31660,7 @@ function diffResources(baseResources, headResources) {
                     oldRegion: baseResource.region,
                     newRegion: headResource.region,
                     properties: headResource.properties,
+                    tags: headResource.tags,
                 });
                 modified++;
                 log.debug(`Modified: ${headResource.type} (${baseResource.sku} -> ${headResource.sku})`);
@@ -31682,6 +31685,7 @@ function diffResources(baseResources, headResources) {
                     change: 'removed',
                     oldSku: baseResource.sku,
                     oldRegion: baseResource.region,
+                    tags: baseResource.tags,
                 });
                 removed++;
                 log.debug(`Removed: ${baseResource.type} (${baseResource.sku || 'no sku'})`);
@@ -32338,6 +32342,7 @@ async function run() {
                                     sku: diff.newSku,
                                     region: diff.newRegion,
                                     properties: diff.properties,
+                                    tags: diff.tags,
                                 };
                                 resourcesWithChange.push({
                                     resource,

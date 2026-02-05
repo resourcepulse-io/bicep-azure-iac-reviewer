@@ -15,6 +15,7 @@ export interface ResourceDiff {
     oldSku?: string;
     oldRegion?: string;
     properties?: Record<string, unknown>;
+    tags?: Record<string, string>;
 }
 /**
  * Result of diffing resources between base and head
