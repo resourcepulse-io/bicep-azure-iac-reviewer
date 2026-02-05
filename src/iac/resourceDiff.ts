@@ -18,6 +18,7 @@ export interface ResourceDiff {
   oldSku?: string;
   oldRegion?: string;
   properties?: Record<string, unknown>;
+  tags?: Record<string, string>;
 }
 
 /**
@@ -170,6 +171,7 @@ export function diffResources(
               oldRegion: unmatchedBase.region,
               newRegion: headResource.region,
               properties: headResource.properties,
+              tags: headResource.tags,
             });
             modified++;
             log.debug(`Modified: ${headResource.type} (${unmatchedBase.sku} -> ${headResource.sku})`);
@@ -189,6 +191,7 @@ export function diffResources(
         newSku: headResource.sku,
         newRegion: headResource.region,
         properties: headResource.properties,
+        tags: headResource.tags,
       });
       added++;
       log.debug(`Added: ${headResource.type} (${headResource.sku || 'no sku'})`);
@@ -207,6 +210,7 @@ export function diffResources(
           oldRegion: baseResource.region,
           newRegion: headResource.region,
           properties: headResource.properties,
+          tags: headResource.tags,
         });
         modified++;
         log.debug(`Modified: ${headResource.type} (${baseResource.sku} -> ${headResource.sku})`);
@@ -232,6 +236,7 @@ export function diffResources(
           change: 'removed',
           oldSku: baseResource.sku,
           oldRegion: baseResource.region,
+          tags: baseResource.tags,
         });
         removed++;
         log.debug(`Removed: ${baseResource.type} (${baseResource.sku || 'no sku'})`);

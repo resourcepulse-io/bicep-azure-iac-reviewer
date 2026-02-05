@@ -206,6 +206,7 @@ async function run(): Promise<void> {
                   sku: diff.newSku,
                   region: diff.newRegion,
                   properties: diff.properties,
+                  tags: diff.tags,
                 };
 
                 resourcesWithChange.push({
