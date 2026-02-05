@@ -81,9 +81,14 @@ function extractSku(resource: Record<string, unknown>): string | undefined {
     if (properties.sku && typeof properties.sku === 'string') {
       return properties.sku;
     }
-    // Try resource.properties.sku.name
+    // Try resource.properties.sku (object form)
     if (properties.sku && typeof properties.sku === 'object') {
       const sku = properties.sku as Record<string, unknown>;
+      // Redis/Cache: SKU is split across name (tier), family, and capacity → build "{family}{capacity}"
+      // e.g. { name: 'Basic', family: 'C', capacity: 1 } → "C1"
+      if (sku.family && typeof sku.family === 'string' && sku.capacity != null) {
+        return `${sku.family}${String(sku.capacity)}`;
+      }
       if (sku.name && typeof sku.name === 'string') {
         return sku.name;
       }
