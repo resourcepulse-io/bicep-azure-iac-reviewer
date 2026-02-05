@@ -56,15 +56,15 @@ function extractSku(resource: Record<string, unknown>): string | undefined {
     // Redis/Cache: SKU is split across name (tier), family, and capacity → build "{family}{capacity}"
     // e.g. { name: 'Basic', family: 'C', capacity: 1 } → "C1"
     if (sku.family && typeof sku.family === 'string' && sku.capacity != null) {
-      return `${sku.family}${sku.capacity}`;
+      return `${sku.family}${String(sku.capacity)}`;
     }
 
     // AKS: sku.name is generic ("Base"), pricing uses sku.tier ("Standard")
     // Prefer tier when name is a generic AKS identifier
     if (sku.name && typeof sku.name === 'string') {
       const genericSkuNames = ['base', 'free'];
-      if (genericSkuNames.includes((sku.name as string).toLowerCase()) && sku.tier && typeof sku.tier === 'string') {
-        return sku.tier as string;
+      if (genericSkuNames.includes(sku.name.toLowerCase()) && sku.tier && typeof sku.tier === 'string') {
+        return sku.tier;
       }
       return sku.name;
     }
