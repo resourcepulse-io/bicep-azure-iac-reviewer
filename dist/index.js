@@ -32405,16 +32405,30 @@ async function run() {
         const serverAddress = core.getInput('server_address') || undefined;
         const commentMode = (core.getInput('comment_mode') || 'update');
         const envInput = core.getInput('env').trim();
-        // If no region data and no API key — nothing meaningful to send, skip analysis
-        if (!enableRegionResolution && !apiKey) {
+        // Resolve the token to use: explicit API key, or GitHub OIDC token for sandbox mode
+        let effectiveToken = apiKey;
+        if (!effectiveToken) {
+            try {
+                // Audience must match the backend's OIDC config ("resourcepulse")
+                const oidcToken = await core.getIDToken('resourcepulse');
+                if (oidcToken) {
+                    effectiveToken = oidcToken;
+                    log.info('No API key provided — using GitHub OIDC token for sandbox analysis');
+                }
+            }
+            catch {
+                log.info('OIDC token unavailable (id-token: write permission not granted) — using local fallback');
+            }
+        }
+        // If no region data and no token — nothing meaningful to send, skip analysis
+        if (!enableRegionResolution && !effectiveToken) {
             log.info('No param_file, main_region, or api_key provided. Skipping analysis — nothing to send.');
             return;
         }
         // Build backend call context
         const { analyzeResources } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(9325)));
-        const normalizedBaseBranch = prContext.baseBranch.toLowerCase();
-        const envHint = envInput || (normalizedBaseBranch === 'main' || normalizedBaseBranch === 'master' ? 'prod' : 'dev');
-        const envSource = envInput ? 'workflow input' : 'branch heuristic';
+        const envHint = envInput;
+        const envSource = envInput ? 'workflow input' : 'none';
         const runAttemptRaw = process.env.GITHUB_RUN_ATTEMPT;
         const runAttempt = runAttemptRaw ? Number.parseInt(runAttemptRaw, 10) : 1;
         const runAttemptValue = Number.isFinite(runAttempt) ? runAttempt : 1;
@@ -32443,7 +32457,7 @@ async function run() {
         };
         // Analyze resources (backend or local fallback)
         const analysisResult = await analyzeResources(sanitizationResult.resources, {
-            apiKey,
+            apiKey: effectiveToken,
             serverAddress,
             callContext,
         });
