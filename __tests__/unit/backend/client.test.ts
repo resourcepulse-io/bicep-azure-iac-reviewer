@@ -66,7 +66,7 @@ describe('analyzeResources', () => {
     context: {
       iacEngine: 'bicep',
       envHint: 'dev',
-      envSource: 'branch heuristic',
+      envSource: 'none',
       paramFileUsed: 'infra/params/dev.bicepparam',
       paramFileSource: 'workflow input',
       resolvedRegions: ['eastus', 'westus'],
@@ -260,7 +260,7 @@ describe('analyzeResources', () => {
       expect(requestBody.pr.headSha).toBe('abc123');
       expect(requestBody.context.iacEngine).toBe('bicep');
       expect(requestBody.context.envHint).toBe('dev');
-      expect(requestBody.context.envSource).toBe('branch heuristic');
+      expect(requestBody.context.envSource).toBe('none');
       expect(requestBody.context.resolvedRegions).toEqual(['eastus', 'westus']);
       expect(requestBody.context.paramFileUsed).toBe('infra/params/dev.bicepparam');
       expect(requestBody.context.paramFileSource).toBe('workflow input');

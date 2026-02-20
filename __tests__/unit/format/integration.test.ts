@@ -55,7 +55,7 @@ describe('Integration: Backend Client + Markdown Formatter', () => {
     context: {
       iacEngine: 'bicep',
       envHint: 'dev',
-      envSource: 'branch heuristic',
+      envSource: 'none',
       paramFileUsed: undefined,
       paramFileSource: 'workflow input',
       resolvedRegions: ['eastus'],
