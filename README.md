@@ -1,78 +1,67 @@
-# Bicep Azure IaC Reviewer
+# ResourcePulse — Bicep IaC Reviewer
 
-A GitHub Action that analyzes Azure Bicep files in pull requests, providing cost insights and best practice recommendations while maintaining strict privacy standards.
+A GitHub Action that analyzes Azure Bicep files in pull requests, providing cost impact estimates and best-practice findings — no signup required.
 
 [![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=flat&logo=github-actions&logoColor=white)](https://github.com/resourcepulse-io/azure-iac-reviewer)
 [![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-blue.svg)](LICENSE)
 
-## Features
+---
 
-- **Automated Bicep Analysis**: Automatically detects and analyzes changed `.bicep` files in pull requests
-- **Cost Insights**: Provides estimated cost impact of infrastructure changes
-- **Best Practices**: Recommends Azure best practices and optimization opportunities
-- **Privacy-First Design**: Only anonymized metadata is transmitted - no resource names, IDs, or sensitive data
-- **Offline Mode**: Works without an API key when a `param_file` is provided — performs local analysis using environment-specific `.bicepparam` files
-- **Smart Comments**: Updates existing PR comments to avoid spam
+## How it works
 
-## Privacy Guarantees
-
-This action is designed with privacy as a core principle:
-
-**What is NOT collected or transmitted:**
-- Source code contents
-- Resource names or identifiers
-- Tag values
-- Connection strings or secrets
-- Resource IDs or GUIDs
-- Any personally identifiable information
-
-**What IS collected (anonymized metadata only):**
-- Resource types (e.g., `Microsoft.Compute/virtualMachines`)
-- SKUs (e.g., `Standard_D2s_v3`)
-- Azure regions (e.g., `eastus`)
-- Resource counts
-- Change types (added, modified, removed)
-- Tag keys (values stripped)
-
-This makes the action safe to use on private repositories with sensitive infrastructure configurations.
-
-## Installation
-
-### Prerequisites
-
-- GitHub Actions workflow with `pull_request` trigger
-- Repository with Azure Bicep files (`.bicep`)
-
-### Basic Setup
-
-Add the following permissions to your workflow:
-
-```yaml
-permissions:
-  contents: read
-  pull-requests: write
+```
+Pull request opened / updated
+        │
+        ▼
+Changed .bicep files detected
+        │
+        ▼
+Compiled → resources extracted → anonymized
+        │
+        ├─ api_key provided  ──────────────► Pro / Trial backend path
+        │
+        └─ no api_key        ──────────────► GitHub OIDC token obtained
+                                             └─► Sandbox backend path (free, no signup)
+                                                        │
+                                                        ▼
+                                              Cost estimate + ruleset findings
+                                              posted as PR comment
 ```
 
-Then use the action in your workflow:
+ResourcePulse never sees your source code. Only anonymized resource metadata (type, SKU, region, change type) is transmitted.
+
+---
+
+## Plans
+
+| | **Sandbox** | **Trial** | **Pro** |
+|--|------------|-----------|---------|
+| Setup | No signup · uses OIDC | 14-day free trial | API key |
+| Cost estimates | ✓ | ✓ | ✓ |
+| Ruleset findings | ✓ | ✓ | ✓ |
+| Org policy | — | ✓ | ✓ |
+| Repos | Unlimited (rate-limited) | 10 | 50 |
+| Daily analyses/repo | 10 | 200 | 500 |
+
+---
+
+## Quick start
+
+### Sandbox (free, no signup)
+
+Add `id-token: write` permission — the action automatically requests a GitHub OIDC token and uses the sandbox backend path. No API key or account needed.
 
 ```yaml
-- uses: resourcepulse-io/azure-iac-reviewer@v1
-```
-
-### Full Example
-
-Create `.github/workflows/bicep-review.yml`:
-
-```yaml
-name: Bicep Review
+name: IaC Review
 
 on:
   pull_request:
-    branches: [ main, develop ]
+    paths: ['**/*.bicep', '**/*.bicepparam']
 
 permissions:
   contents: read
   pull-requests: write
+  id-token: write          # required for sandbox OIDC auth
 
 jobs:
   review:
@@ -80,184 +69,153 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: resourcepulse-io/azure-iac-reviewer@v1
+      - uses: resourcepulse-io/azure-iac-reviewer@main
         with:
-          # Optional: Provide API key for enhanced analysis
-          api_key: ${{ secrets.AZURE_IAC_REVIEWER_API_KEY }}
-
-          # Optional: Path to .bicepparam file for region resolution
-          param_file: infra/params/dev.bicepparam
-
-          # Optional: Comment mode (update existing or create new)
-          # comment_mode: 'update'
+          param_file: infra/params/dev.bicepparam   # for region resolution
+          comment_mode: update
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-## Action Inputs
+### Pro / Trial (API key)
+
+```yaml
+- uses: resourcepulse-io/azure-iac-reviewer@main
+  with:
+    api_key: ${{ secrets.RESOURCEPULSE_API_KEY }}
+    param_file: infra/params/dev.bicepparam
+    comment_mode: update
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+Get an API key at [resourcepulseapp.com](https://resourcepulseapp.com).
+
+---
+
+## Demo
+
+Example PR comment produced by the sandbox path (no API key, `param_file` provided):
+
+---
+
+**Region resolution**
+Regions: westeurope
+Param file: infra/params/dev.bicepparam
+
+## ResourcePulse Report
+
+### Cost Estimate
+
+**Estimated Monthly Cost: $117.33**
+**Coverage: 2 of 2 resources (100%)**
+
+| Resource | Change | SKU | Monthly Cost |
+|----------|--------|-----|--------------|
+| Appservice | changed | B1 → P1v3 | +$116.80 |
+| Storage | changed | Standard_LRS → Standard_GRS | +$0.53 |
+
+### Findings
+
+#### Warnings (2)
+- **Missing environment tag** (2 resources): Resource is missing `environment` tag
+  > Add `environment` tag (dev/staging/prod) for cost tracking
+
+### Summary
+0 critical · 2 warnings · Status: **warn**
+
+---
+<sub>Pricing: 20260207 | Ruleset: embedded-v1 | Policy: n/a | [ResourcePulse](https://resourcepulseapp.com)</sub>
+<sub>Mode: Sandbox · [Start 14-day trial →](https://resourcepulseapp.com/trial)</sub>
+
+---
+
+## Inputs
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `api_key` | No | _(empty)_ | API key for the Azure IaC Reviewer backend service. If not provided, the action uses local analysis. |
-| `param_file` | No | _(empty)_ | Path to a `.bicepparam` file for region resolution. Enables precise region analysis by extracting parameter values from the file. |
-| `server_address` | No | `https://api.resourcepulse.io` | Backend API endpoint URL. |
-| `comment_mode` | No | `update` | Comment behavior: `update` to update existing PR comment, `new` to create a new comment each time. |
-| `env` | No | _(empty)_ | Environment hint for policy selection (e.g., `dev`, `prod`). If not provided, the action uses a branch heuristic. |
-| `main_region` | No | _(empty)_ | Fallback Azure region (e.g., `eastus`) when no `param_file` is provided. Prefer `param_file` with environment-specific `.bicepparam` files instead. |
+| `api_key` | No | — | API key for Pro/Trial plans. If omitted, the action uses sandbox mode via OIDC. |
+| `param_file` | No | — | Path to a `.bicepparam` file. Required for region resolution and cost estimates. |
+| `server_address` | No | `https://api.resourcepulseapp.com` | Backend API endpoint. |
+| `comment_mode` | No | `update` | `update` — edit existing comment in place. `new` — post a new comment each run. |
+| `main_region` | No | — | Fallback region (e.g. `westeurope`) when no `param_file` is available. |
+| `env` | No | — | Environment hint for policy selection (`dev`, `staging`, `prod`). |
 
-## Action Outputs
+## Outputs
 
 | Output | Description |
 |--------|-------------|
-| `resources_detected` | Number of Azure resources detected in changed Bicep files |
-| `analysis_status` | Status of the analysis: `success`, `partial`, or `failed` |
+| `resources_detected` | Number of Azure resources detected in changed Bicep files. |
+| `analysis_status` | `success`, `partial`, or `failed`. |
 
-## How It Works
+---
 
-1. **Detects Changes**: Identifies all modified `.bicep` files in the pull request
-2. **Compiles Bicep**: Uses the official Bicep CLI to compile files to ARM JSON
-3. **Extracts Metadata**: Parses resource definitions from compiled ARM templates
-4. **Sanitizes Data**: Removes all identifying information, retaining only anonymized metadata
-5. **Analyzes**: Sends sanitized metadata to backend (if API key provided) or performs local analysis
-6. **Posts Results**: Creates or updates a PR comment with findings and recommendations
+## Region resolution
 
-## Usage Examples
+Cost estimates require a region. Provide one of:
 
-### Without API Key (Local Analysis)
+- **`param_file`** (recommended) — path to a `.bicepparam` file; the action parses `param location = '...'` automatically.
+- **`main_region`** — explicit fallback region string.
 
-```yaml
-- uses: resourcepulse-io/azure-iac-reviewer@v1
-  with:
-    param_file: infra/params/dev.bicepparam
-```
+Without either, cost rows will show:
+> _Add `param_file` or `main_region` to your workflow for cost estimates_
 
-The action will analyze Bicep files and provide basic insights without connecting to the backend service. A `param_file` (or `main_region`) is required — without either, the action exits silently as there is nothing to analyze.
+---
 
-### With Region Resolution
+## Privacy
 
-```yaml
-- uses: resourcepulse-io/azure-iac-reviewer@v1
-  with:
-    param_file: infra/params/dev.bicepparam
-```
+**Transmitted (anonymized metadata only):**
+- Resource types (`Microsoft.Storage/storageAccounts`)
+- SKUs (`Standard_GRS`)
+- Azure regions (`westeurope`)
+- Resource counts and change types
+- Tag **keys** only (values are stripped)
 
-Provide a `.bicepparam` file path for precise region analysis. The action parses parameter values and resolves resource locations from the compiled ARM template.
+**Never transmitted:**
+- Source code
+- Resource names or IDs
+- Tag values
+- Secrets or connection strings
+- Any personally identifiable information
 
-### With API Key (Enhanced Analysis)
+---
 
-```yaml
-- uses: resourcepulse-io/azure-iac-reviewer@v1
-  with:
-    api_key: ${{ secrets.AZURE_IAC_REVIEWER_API_KEY }}
-    param_file: infra/params/dev.bicepparam
-```
-
-Store your API key as a repository secret and reference it securely. Enhanced analysis provides:
-- Detailed cost estimates
-- Advanced optimization recommendations
-- Security best practice suggestions
-
-### Custom Comment Behavior
-
-```yaml
-- uses: resourcepulse-io/azure-iac-reviewer@v1
-  with:
-    comment_mode: 'new'
-```
-
-Creates a new comment for each workflow run instead of updating the existing one.
-
-## Troubleshooting
-
-### No comment appears on PR
-
-**Possible causes:**
-- No `.bicep` files were changed in the PR
-- Missing `pull-requests: write` permission
-- Action running on `push` event instead of `pull_request`
-
-**Solution:** Ensure workflow has proper permissions and triggers on `pull_request` events.
-
-### Compilation errors in PR comment
-
-**What it means:** One or more Bicep files have syntax errors or invalid references.
-
-**Solution:** Review the compilation error details in the PR comment and fix the Bicep syntax. The action will continue analyzing other valid files.
-
-### "Analysis failed" status
-
-**Possible causes:**
-- Backend service is unavailable (if using API key)
-- Network connectivity issues
-- Invalid API key
-
-**Solution:**
-- Check backend service status
-- Verify API key is correct
-- The action will fall back to local analysis if backend is unavailable
-
-### Action fails with "Bicep CLI not found"
-
-**What it means:** Unable to download or cache the Bicep CLI binary.
-
-**Solution:** Ensure the runner has internet access and sufficient disk space in `RUNNER_TEMP`.
-
-## Required Permissions
-
-The action requires the following GitHub token permissions:
+## Required permissions
 
 ```yaml
 permissions:
-  contents: read        # Read repository files and PR context
-  pull-requests: write  # Create/update PR comments
+  contents: read        # read repo files and PR diff
+  pull-requests: write  # post / update PR comment
+  id-token: write       # sandbox OIDC auth (omit if using api_key)
 ```
 
-These are the minimum required permissions. The action does not require:
-- `checks: write` (optional, for future check run feature)
-- `issues: write`
-- Repository write access
+---
 
-## Security
+## Troubleshooting
 
-This action is designed with security and privacy as top priorities. For detailed information about:
-- What data is collected
-- How data is handled
-- Reporting security vulnerabilities
+**No comment appears**
+- Confirm the workflow triggers on `pull_request`
+- Confirm `pull-requests: write` permission is set
+- Confirm at least one `.bicep` file changed in the PR
 
-Please see [SECURITY.md](SECURITY.md).
+**Cost shows "Add param_file..."**
+- Add `param_file: path/to/your.bicepparam` to the action inputs
+- Or add `main_region: westeurope`
 
-### Building from Source
+**Backend returns 401**
+- For sandbox: confirm `id-token: write` is in the workflow permissions
+- For Pro/Trial: verify the `api_key` secret is set correctly
 
-```bash
-npm install
-npm run build
-npm test
-```
+**Compilation errors in comment**
+- Fix the Bicep syntax errors shown; the action continues analyzing other valid files
 
-### Running Tests
-
-```bash
-npm test              # Run all tests
-npm run test:watch    # Watch mode
-npm run test:unit     # Unit tests only
-```
+---
 
 ## License
 
-Business Source License 1.1 - see [LICENSE](LICENSE) for details.
-
-This software converts to Apache 2.0 on 2031-01-28.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+Business Source License 1.1 — see [LICENSE](LICENSE) for details. Converts to Apache 2.0 on 2031-01-28.
 
 ## Support
 
-- [Report Issues](https://github.com/resourcepulse-io/azure-iac-reviewer/issues)
-- [Documentation](https://github.com/resourcepulse-io/azure-iac-reviewer/tree/main/docs)
-- [Example Workflows](docs/examples/)
-
-## Acknowledgments
-
-Built with:
-- [Azure Bicep](https://github.com/Azure/bicep) - Official Azure IaC language
-- [GitHub Actions Toolkit](https://github.com/actions/toolkit) - GitHub Actions development framework
+- [Report an issue](https://github.com/resourcepulse-io/azure-iac-reviewer/issues)
+- [resourcepulseapp.com](https://resourcepulseapp.com)
