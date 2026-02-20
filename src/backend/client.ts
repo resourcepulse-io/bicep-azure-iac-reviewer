@@ -4,7 +4,7 @@ import { SanitizedResource, validateNoSensitiveData } from '../iac/sanitize';
 /**
  * Default backend API URL
  */
-const DEFAULT_BACKEND_URL = 'https://api.resourcepulse.io';
+const DEFAULT_BACKEND_URL = 'https://dev.resourcepulseapp.com';
 
 /**
  * Result of the analysis operation
