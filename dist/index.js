@@ -29917,7 +29917,7 @@ const sanitize_1 = __nccwpck_require__(8020);
 /**
  * Default backend API URL
  */
-const DEFAULT_BACKEND_URL = 'https://api.resourcepulse.io';
+const DEFAULT_BACKEND_URL = 'https://api.resourcepulseapp.com';
 /**
  * Default timeout for backend requests (30 seconds)
  */
@@ -30225,7 +30225,7 @@ function getVersion() {
  */
 function generateFooter() {
     const version = getVersion();
-    return `\n---\n<sub>🔍 Analyzed by [ResourcePulse](https://resourcepulse.io) • v${version}</sub>`;
+    return `\n---\n<sub>🔍 Analyzed by [ResourcePulse](https://resourcepulseapp.com) • v${version}</sub>`;
 }
 /**
  * Format an error banner for display in PR comments

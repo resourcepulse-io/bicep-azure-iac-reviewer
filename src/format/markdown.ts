@@ -21,7 +21,7 @@ function getVersion(): string {
  */
 function generateFooter(): string {
   const version = getVersion();
-  return `\n---\n<sub>🔍 Analyzed by [ResourcePulse](https://resourcepulse.io) • v${version}</sub>`;
+  return `\n---\n<sub>🔍 Analyzed by [ResourcePulse](https://resourcepulseapp.com) • v${version}</sub>`;
 }
 
 /**
