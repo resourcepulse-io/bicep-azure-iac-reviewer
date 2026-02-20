@@ -271,9 +271,8 @@ async function run(): Promise<void> {
     // Build backend call context
     const { analyzeResources } = await import('./backend/client');
 
-    const normalizedBaseBranch = prContext.baseBranch.toLowerCase();
-    const envHint = envInput || (normalizedBaseBranch === 'main' || normalizedBaseBranch === 'master' ? 'prod' : 'dev');
-    const envSource = envInput ? 'workflow input' : 'branch heuristic';
+    const envHint = envInput;
+    const envSource = envInput ? 'workflow input' : 'none';
     const runAttemptRaw = process.env.GITHUB_RUN_ATTEMPT;
     const runAttempt = runAttemptRaw ? Number.parseInt(runAttemptRaw, 10) : 1;
     const runAttemptValue = Number.isFinite(runAttempt) ? runAttempt : 1;
