@@ -260,8 +260,19 @@ async function run(): Promise<void> {
     const commentMode = (core.getInput('comment_mode') || 'update') as 'update' | 'new';
     const envInput = core.getInput('env').trim();
 
-    // If no region data and no API key — nothing meaningful to send, skip analysis
-    if (!enableRegionResolution && !apiKey) {
+    // If no api_key, try GitHub OIDC token for sandbox mode
+    let authToken = apiKey;
+    if (!authToken) {
+      try {
+        log.info('No api_key provided — requesting OIDC token for sandbox mode');
+        authToken = await core.getIDToken('resourcepulse');
+        log.info('OIDC token obtained — using sandbox path');
+      } catch {
+        log.info('Could not obtain OIDC token (id-token: write permission required for sandbox mode)');
+      }
+    }
+    // If no region data and no auth — nothing meaningful to send, skip analysis
+    if (!enableRegionResolution && !authToken) {
       log.info(
         'No param_file, main_region, or api_key provided. Skipping analysis — nothing to send.'
       );
@@ -303,7 +314,7 @@ async function run(): Promise<void> {
 
     // Analyze resources (backend or local fallback)
     const analysisResult = await analyzeResources(sanitizationResult.resources, {
-      apiKey,
+      apiKey: authToken,
       serverAddress,
       callContext,
     });

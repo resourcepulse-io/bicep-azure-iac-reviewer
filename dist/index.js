@@ -32405,16 +32405,27 @@ async function run() {
         const serverAddress = core.getInput('server_address') || undefined;
         const commentMode = (core.getInput('comment_mode') || 'update');
         const envInput = core.getInput('env').trim();
-        // If no region data and no API key — nothing meaningful to send, skip analysis
-        if (!enableRegionResolution && !apiKey) {
+        // If no api_key, try GitHub OIDC token for sandbox mode
+        let authToken = apiKey;
+        if (!authToken) {
+            try {
+                log.info('No api_key provided — requesting OIDC token for sandbox mode');
+                authToken = await core.getIDToken('resourcepulse');
+                log.info('OIDC token obtained — using sandbox path');
+            }
+            catch {
+                log.info('Could not obtain OIDC token (id-token: write permission required for sandbox mode)');
+            }
+        }
+        // If no region data and no auth — nothing meaningful to send, skip analysis
+        if (!enableRegionResolution && !authToken) {
             log.info('No param_file, main_region, or api_key provided. Skipping analysis — nothing to send.');
             return;
         }
         // Build backend call context
         const { analyzeResources } = await Promise.resolve().then(() => __importStar(__nccwpck_require__(9325)));
-        const normalizedBaseBranch = prContext.baseBranch.toLowerCase();
-        const envHint = envInput || (normalizedBaseBranch === 'main' || normalizedBaseBranch === 'master' ? 'prod' : 'dev');
-        const envSource = envInput ? 'workflow input' : 'branch heuristic';
+        const envHint = envInput;
+        const envSource = envInput ? 'workflow input' : 'none';
         const runAttemptRaw = process.env.GITHUB_RUN_ATTEMPT;
         const runAttempt = runAttemptRaw ? Number.parseInt(runAttemptRaw, 10) : 1;
         const runAttemptValue = Number.isFinite(runAttempt) ? runAttempt : 1;
@@ -32443,7 +32454,7 @@ async function run() {
         };
         // Analyze resources (backend or local fallback)
         const analysisResult = await analyzeResources(sanitizationResult.resources, {
-            apiKey,
+            apiKey: authToken,
             serverAddress,
             callContext,
         });
