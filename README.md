@@ -11,7 +11,7 @@ A GitHub Action that analyzes Azure Bicep files in pull requests, providing cost
 - **Cost Insights**: Provides estimated cost impact of infrastructure changes
 - **Best Practices**: Recommends Azure best practices and optimization opportunities
 - **Privacy-First Design**: Only anonymized metadata is transmitted - no resource names, IDs, or sensitive data
-- **Offline Mode**: Works without API key using local analysis fallback
+- **Offline Mode**: Works without an API key when a `param_file` is provided — performs local analysis using environment-specific `.bicepparam` files
 - **Smart Comments**: Updates existing PR comments to avoid spam
 
 ## Privacy Guarantees
@@ -101,6 +101,7 @@ jobs:
 | `server_address` | No | `https://api.resourcepulse.io` | Backend API endpoint URL. |
 | `comment_mode` | No | `update` | Comment behavior: `update` to update existing PR comment, `new` to create a new comment each time. |
 | `env` | No | _(empty)_ | Environment hint for policy selection (e.g., `dev`, `prod`). If not provided, the action uses a branch heuristic. |
+| `main_region` | No | _(empty)_ | Fallback Azure region (e.g., `eastus`) when no `param_file` is provided. Prefer `param_file` with environment-specific `.bicepparam` files instead. |
 
 ## Action Outputs
 
@@ -124,9 +125,11 @@ jobs:
 
 ```yaml
 - uses: resourcepulse-io/azure-iac-reviewer@v1
+  with:
+    param_file: infra/params/dev.bicepparam
 ```
 
-The action will analyze Bicep files and provide basic insights without connecting to the backend service.
+The action will analyze Bicep files and provide basic insights without connecting to the backend service. A `param_file` (or `main_region`) is required — without either, the action exits silently as there is nothing to analyze.
 
 ### With Region Resolution
 
