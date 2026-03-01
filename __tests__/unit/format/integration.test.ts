@@ -132,7 +132,6 @@ describe('Integration: Backend Client + Markdown Formatter', () => {
       // Step 1: Analyze resources with backend
       const analysisResult = await analyzeResources(mockResources, {
         apiKey: 'test-api-key',
-        serverAddress: 'https://api.example.com',
         callContext: mockCallContext,
       });
 
@@ -188,7 +187,6 @@ storage:
 
       const analysisResult = await analyzeResources(mockResources, {
         apiKey: 'test-api-key',
-        serverAddress: 'https://api.example.com',
         callContext: mockCallContext,
       });
       const prComment = formatPRComment(analysisResult);
@@ -213,7 +211,6 @@ storage:
       // Step 1: Analyze resources (will fall back to local)
       const analysisResult = await analyzeResources(mockResources, {
         apiKey: 'test-api-key',
-        serverAddress: 'https://api.example.com',
         callContext: mockCallContext,
       });
 
@@ -291,7 +288,6 @@ storage:
       // 2. Analyze with backend (or local fallback)
       const analysisResult = await analyzeResources(resources, {
         apiKey: 'optional-api-key',
-        serverAddress: 'https://api.example.com',
         callContext: mockCallContext,
       });
 
@@ -347,7 +343,6 @@ storage:
 
       const analysisResult = await analyzeResources(mockResources, {
         apiKey: 'test-api-key',
-        serverAddress: 'https://api.example.com',
         callContext: mockCallContext,
       });
       const prComment = formatPRComment(analysisResult);

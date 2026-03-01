@@ -11,10 +11,6 @@ inputs:
     description: 'API key for the Azure IaC Reviewer backend service (optional)'
     required: false
     default: ''
-  server_address:
-    description: 'Backend API endpoint URL (defaults to production URL)'
-    required: false
-    default: 'https://api.resourcepulse.io'
   comment_mode:
     description: 'Comment mode: "update" to update existing comment, "new" to create new comment each time'
     required: false

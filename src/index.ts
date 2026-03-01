@@ -256,7 +256,6 @@ async function run(): Promise<void> {
 
     // Get action inputs
     const apiKey = core.getInput('api_key') || undefined;
-    const serverAddress = core.getInput('server_address') || undefined;
     const commentMode = (core.getInput('comment_mode') || 'update') as 'update' | 'new';
     const envInput = core.getInput('env').trim();
 
@@ -315,7 +314,6 @@ async function run(): Promise<void> {
     // Analyze resources (backend or local fallback)
     const analysisResult = await analyzeResources(sanitizationResult.resources, {
       apiKey: authToken,
-      serverAddress,
       callContext,
     });
 
