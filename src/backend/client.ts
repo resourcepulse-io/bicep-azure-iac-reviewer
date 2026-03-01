@@ -90,9 +90,9 @@ interface BackendResponse {
 }
 
 /**
- * Default timeout for backend requests (30 seconds)
+ * Default timeout for backend requests (60 seconds)
  */
-const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_TIMEOUT_MS = 60000;
 
 /**
  * Generate local fallback markdown when backend is unavailable or no API key provided
