@@ -68,7 +68,6 @@ export interface BackendCallContext {
  */
 export interface AnalyzeOptions {
     apiKey?: string;
-    serverAddress?: string;
     callContext?: BackendCallContext;
 }
 /**

@@ -65,7 +65,7 @@ describe('markdown formatter', () => {
       expect(formatted).toContain('---');
       expect(formatted).toContain('🔍 Analyzed by');
       expect(formatted).toContain('ResourcePulse');
-      expect(formatted).toContain('https://resourcepulse.io');
+      expect(formatted).toContain('https://resourcepulseapp.com');
     });
 
     it('should include version in footer', () => {
