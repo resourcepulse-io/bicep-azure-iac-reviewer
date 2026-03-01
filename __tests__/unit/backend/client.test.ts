@@ -171,7 +171,7 @@ describe('analyzeResources', () => {
       // Verify fetch was called correctly
       expect(global.fetch).toHaveBeenCalledTimes(1);
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.resourcepulse.io/analyze',
+        'https://dev.resourcepulseapp.com/analyze',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -198,7 +198,7 @@ describe('analyzeResources', () => {
       );
     });
 
-    it('should use custom server address when provided', async () => {
+    it('should always use the hardcoded default backend URL', async () => {
       const mockMarkdown = '## Analysis';
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -209,12 +209,11 @@ describe('analyzeResources', () => {
 
       await analyzeResources(mockResources, {
         apiKey: 'test-api-key',
-        serverAddress: 'https://custom.example.com',
         callContext: mockCallContext,
       });
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://custom.example.com/analyze',
+        'https://dev.resourcepulseapp.com/analyze',
         expect.any(Object)
       );
     });
@@ -581,7 +580,7 @@ describe('analyzeResources', () => {
 
       expect(log.debug).toHaveBeenCalledWith('Starting resource analysis');
       expect(log.debug).toHaveBeenCalledWith(
-        'Calling backend API: https://api.resourcepulse.io'
+        'Calling backend API: https://dev.resourcepulseapp.com'
       );
       expect(log.debug).toHaveBeenCalledWith(
         'Sending 3 sanitized resource(s)'
@@ -636,7 +635,7 @@ describe('analyzeResources', () => {
       });
 
       expect(log.info).toHaveBeenCalledWith(
-        'Attempting backend analysis at https://api.resourcepulse.io'
+        'Attempting backend analysis at https://dev.resourcepulseapp.com'
       );
     });
   });
