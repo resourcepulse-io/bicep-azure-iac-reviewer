@@ -29919,9 +29919,9 @@ const sanitize_1 = __nccwpck_require__(8020);
  */
 const DEFAULT_BACKEND_URL = 'https://dev.resourcepulseapp.com';
 /**
- * Default timeout for backend requests (30 seconds)
+ * Default timeout for backend requests (60 seconds)
  */
-const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_TIMEOUT_MS = 60000;
 /**
  * Generate local fallback markdown when backend is unavailable or no API key provided
  * @param resources - Sanitized resources to summarize
@@ -30108,7 +30108,7 @@ async function callBackend(resources, apiKey, backendUrl, callContext) {
                 error.message.includes('ENOTFOUND') ||
                 error.message.includes('ECONNREFUSED')) {
                 log.warning(`Network error calling backend: ${error.message}`);
-                errorDetail = 'Network error — could not reach the ResourcePulse backend. Check `server_address` or try again later.';
+                errorDetail = 'Network error — could not reach the ResourcePulse backend. Please try again later.';
             }
             else {
                 log.warning(`Error calling backend: ${error.message}`);
@@ -30129,8 +30129,8 @@ async function callBackend(resources, apiKey, backendUrl, callContext) {
  * @returns Analysis result with markdown message
  */
 async function analyzeResources(resources, options = {}) {
-    const { apiKey, serverAddress, callContext } = options;
-    const backendUrl = serverAddress || DEFAULT_BACKEND_URL;
+    const { apiKey, callContext } = options;
+    const backendUrl = DEFAULT_BACKEND_URL;
     log.debug('Starting resource analysis');
     log.debug(`API key provided: ${apiKey ? 'yes' : 'no'}`);
     log.debug(`Server address: ${backendUrl}`);
@@ -32402,7 +32402,6 @@ async function run() {
         log.info(`Sanitized ${sanitizationResult.resourceCount} resource(s) for analysis`);
         // Get action inputs
         const apiKey = core.getInput('api_key') || undefined;
-        const serverAddress = core.getInput('server_address') || undefined;
         const commentMode = (core.getInput('comment_mode') || 'update');
         const envInput = core.getInput('env').trim();
         // If no api_key, try GitHub OIDC token for sandbox mode
@@ -32455,7 +32454,6 @@ async function run() {
         // Analyze resources (backend or local fallback)
         const analysisResult = await analyzeResources(sanitizationResult.resources, {
             apiKey: authToken,
-            serverAddress,
             callContext,
         });
         log.info(`Analysis completed using ${analysisResult.source} source`);
