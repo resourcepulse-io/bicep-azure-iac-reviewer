@@ -36,7 +36,7 @@ export interface RunInfo {
 export interface ContextInfo {
     iacEngine: 'bicep';
     envHint: string;
-    envSource: 'workflow input' | 'branch heuristic';
+    envSource: 'workflow input' | 'none';
     paramFileUsed?: string;
     paramFileSource: 'workflow input';
     resolvedRegions: string[];
