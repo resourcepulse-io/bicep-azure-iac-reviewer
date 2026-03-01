@@ -345,7 +345,7 @@ async function callBackend(
         error.message.includes('ECONNREFUSED')
       ) {
         log.warning(`Network error calling backend: ${error.message}`);
-        errorDetail = 'Network error — could not reach the ResourcePulse backend. Check `server_address` or try again later.';
+        errorDetail = 'Network error — could not reach the ResourcePulse backend. Please try again later.';
       } else {
         log.warning(`Error calling backend: ${error.message}`);
         errorDetail = `Unexpected error: ${error.message}`;
@@ -363,7 +363,6 @@ async function callBackend(
  */
 export interface AnalyzeOptions {
   apiKey?: string;
-  serverAddress?: string;
   callContext?: BackendCallContext;
 }
 
@@ -378,8 +377,8 @@ export async function analyzeResources(
   resources: SanitizedResource[],
   options: AnalyzeOptions = {}
 ): Promise<AnalysisResult> {
-  const { apiKey, serverAddress, callContext } = options;
-  const backendUrl = serverAddress || DEFAULT_BACKEND_URL;
+  const { apiKey, callContext } = options;
+  const backendUrl = DEFAULT_BACKEND_URL;
 
   log.debug('Starting resource analysis');
   log.debug(`API key provided: ${apiKey ? 'yes' : 'no'}`);
