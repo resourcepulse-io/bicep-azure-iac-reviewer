@@ -21,7 +21,7 @@ Compiled → resources extracted → anonymized
         ├─ api_key provided  ──────────────► Pro / Trial backend path
         │
         └─ no api_key        ──────────────► GitHub OIDC token obtained
-                                             └─► Sandbox backend path (free, no signup)
+                                             └─► Preview backend path (free, no signup)
                                                         │
                                                         ▼
                                               Cost estimate + ruleset findings
@@ -34,22 +34,22 @@ ResourcePulse never sees your source code. Only anonymized resource metadata (ty
 
 ## Plans
 
-| | **Sandbox** | **Trial** | **Pro** |
+| | **Preview** | **Trial** | **Pro** |
 |--|------------|-----------|---------|
 | Setup | No signup · uses OIDC | 14-day free trial | API key |
 | Cost estimates | ✓ | ✓ | ✓ |
 | Ruleset findings | ✓ | ✓ | ✓ |
 | Org policy | — | ✓ | ✓ |
 | Repos | Unlimited (rate-limited) | 10 | 50 |
-| Daily analyses/repo | 10 | 200 | 500 |
+| Analyses/month | 30 | 200 | 500 |
 
 ---
 
 ## Quick start
 
-### Sandbox (free, no signup)
+### Preview (free, no signup)
 
-Add `id-token: write` permission — the action automatically requests a GitHub OIDC token and uses the sandbox backend path. No API key or account needed.
+Add `id-token: write` permission — the action automatically requests a GitHub OIDC token and uses the preview backend path. No API key or account needed.
 
 ```yaml
 name: IaC Review
@@ -61,7 +61,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
-  id-token: write          # required for sandbox OIDC auth
+  id-token: write          # required for preview OIDC auth
 
 jobs:
   review:
@@ -95,7 +95,7 @@ Get an API key at [resourcepulseapp.com](https://resourcepulseapp.com).
 
 ## Demo
 
-Example PR comment produced by the sandbox path (no API key, `param_file` provided):
+Example PR comment produced by the preview path (no API key, `param_file` provided):
 
 ---
 
@@ -126,7 +126,7 @@ Param file: infra/params/dev.bicepparam
 
 ---
 <sub>Pricing: 20260207 | Ruleset: embedded-v1 | Policy: n/a | [ResourcePulse](https://resourcepulseapp.com)</sub>
-<sub>Mode: Sandbox · [Start 14-day trial →](https://resourcepulseapp.com/trial)</sub>
+<sub>Mode: Preview · [Start 14-day trial →](https://resourcepulseapp.com/trial)</sub>
 
 ---
 
@@ -134,9 +134,8 @@ Param file: infra/params/dev.bicepparam
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `api_key` | No | — | API key for Pro/Trial plans. If omitted, the action uses sandbox mode via OIDC. |
+| `api_key` | No | — | API key for Pro/Trial plans. If omitted, the action uses preview mode via OIDC. |
 | `param_file` | No | — | Path to a `.bicepparam` file. Required for region resolution and cost estimates. |
-| `server_address` | No | `https://api.resourcepulseapp.com` | Backend API endpoint. |
 | `comment_mode` | No | `update` | `update` — edit existing comment in place. `new` — post a new comment each run. |
 | `main_region` | No | — | Fallback region (e.g. `westeurope`) when no `param_file` is available. |
 | `env` | No | — | Environment hint for policy selection (`dev`, `staging`, `prod`). |
@@ -186,7 +185,7 @@ Without either, cost rows will show:
 permissions:
   contents: read        # read repo files and PR diff
   pull-requests: write  # post / update PR comment
-  id-token: write       # sandbox OIDC auth (omit if using api_key)
+  id-token: write       # preview OIDC auth (omit if using api_key)
 ```
 
 ---
@@ -203,7 +202,7 @@ permissions:
 - Or add `main_region: westeurope`
 
 **Backend returns 401**
-- For sandbox: confirm `id-token: write` is in the workflow permissions
+- For preview: confirm `id-token: write` is in the workflow permissions
 - For Pro/Trial: verify the `api_key` secret is set correctly
 
 **Compilation errors in comment**
