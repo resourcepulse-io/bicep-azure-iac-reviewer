@@ -130,6 +130,50 @@ Param file: infra/params/dev.bicepparam
 
 ---
 
+## Supported resources
+
+### Cost-estimated
+
+These resources produce a monthly cost row in the PR comment.
+
+| Resource | ARM type(s) |
+|----------|-------------|
+| Virtual Machines | `Microsoft.Compute/virtualMachines` · `Microsoft.Compute/virtualMachineScaleSets` |
+| App Service | `Microsoft.Web/serverfarms` · `Microsoft.Web/sites` |
+| Azure Kubernetes Service | `Microsoft.ContainerService/managedClusters` |
+| Azure SQL Database | `Microsoft.Sql/servers/databases` |
+| PostgreSQL Flexible Server | `Microsoft.DBforPostgreSQL/flexibleServers` · `Microsoft.DBforPostgreSQL/servers` |
+| Azure Cache for Redis | `Microsoft.Cache/redis` |
+| Storage Accounts | `Microsoft.Storage/storageAccounts` |
+| Container Registry | `Microsoft.ContainerRegistry/registries` |
+| Service Bus | `Microsoft.ServiceBus/namespaces` |
+| API Management | `Microsoft.ApiManagement/service` |
+| Key Vault | `Microsoft.KeyVault/vaults` |
+
+> **PostgreSQL note** — only modern compute series are estimatable (Dadsv5, Ddsv5). Legacy Dsv3 SKUs (e.g. `Standard_D4s_v3`) show as "Coverage in progress".
+
+### Consumption-based (no fixed cost)
+
+Tracked in findings and rulesets, but cost estimation requires actual usage data.
+
+| Resource | ARM type |
+|----------|----------|
+| Container Apps | `Microsoft.App/containerApps` |
+| Azure Functions | `Microsoft.Web/sites` (kind: `functionapp`) |
+| Cosmos DB | `Microsoft.DocumentDB/databaseAccounts` |
+| Application Insights | `Microsoft.Insights/components` |
+
+### Free / infrastructure-only
+
+Tracked for ruleset findings (e.g. missing tags). No cost row produced.
+
+| Resource | ARM type |
+|----------|----------|
+| Virtual Networks | `Microsoft.Network/virtualNetworks` |
+| Network Security Groups | `Microsoft.Network/networkSecurityGroups` |
+
+---
+
 ## Inputs
 
 | Input | Required | Default | Description |
