@@ -30919,8 +30919,10 @@ function extractTags(resource) {
         const tags = resource.tags;
         const result = {};
         for (const key of Object.keys(tags)) {
-            // Keep tag keys, strip values for privacy
-            result[key] = '';
+            // Keep tag keys, strip actual values for privacy.
+            // Use "present" so the API can distinguish "tag exists" from "tag missing"
+            // (the rule condition fires on empty string, which is the GetValueOrDefault fallback).
+            result[key] = 'present';
         }
         return Object.keys(result).length > 0 ? result : undefined;
     }
@@ -31938,7 +31940,8 @@ function sanitizeProperties(properties, removedFields) {
             removedFields.add(key);
             continue;
         }
-        // Special handling for tags - keep only tag keys with empty values
+        // Special handling for tags - keep only tag keys, strip actual values for privacy.
+        // Use "present" so the API can distinguish "tag exists" from "tag missing".
         if (key.toLowerCase() === 'tags') {
             if (value && typeof value === 'object' && !Array.isArray(value)) {
                 const sanitizedTags = {};
@@ -31947,7 +31950,7 @@ function sanitizeProperties(properties, removedFields) {
                         removedFields.add(`tags.${tagKey}`);
                         continue;
                     }
-                    sanitizedTags[tagKey] = '';
+                    sanitizedTags[tagKey] = 'present';
                 }
                 if (Object.keys(sanitizedTags).length > 0) {
                     sanitized[key] = sanitizedTags;
