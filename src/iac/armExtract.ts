@@ -188,8 +188,10 @@ function extractTags(
     const tags = resource.tags as Record<string, unknown>;
     const result: Record<string, string> = {};
     for (const key of Object.keys(tags)) {
-      // Keep tag keys, strip values for privacy
-      result[key] = '';
+      // Keep tag keys, strip actual values for privacy.
+      // Use "present" so the API can distinguish "tag exists" from "tag missing"
+      // (the rule condition fires on empty string, which is the GetValueOrDefault fallback).
+      result[key] = 'present';
     }
     return Object.keys(result).length > 0 ? result : undefined;
   }
