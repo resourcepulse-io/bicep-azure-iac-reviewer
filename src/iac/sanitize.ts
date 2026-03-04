@@ -243,7 +243,8 @@ function sanitizeProperties(
       continue;
     }
 
-    // Special handling for tags - keep only tag keys with empty values
+    // Special handling for tags - keep only tag keys, strip actual values for privacy.
+    // Use "present" so the API can distinguish "tag exists" from "tag missing".
     if (key.toLowerCase() === 'tags') {
       if (value && typeof value === 'object' && !Array.isArray(value)) {
         const sanitizedTags: Record<string, string> = {};
@@ -252,7 +253,7 @@ function sanitizeProperties(
             removedFields.add(`tags.${tagKey}`);
             continue;
           }
-          sanitizedTags[tagKey] = '';
+          sanitizedTags[tagKey] = 'present';
         }
         if (Object.keys(sanitizedTags).length > 0) {
           sanitized[key] = sanitizedTags;
