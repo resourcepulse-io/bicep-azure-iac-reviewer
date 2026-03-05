@@ -31325,14 +31325,24 @@ async function compileBicepContent(bicepCliPath, content, originalFilePath) {
             error: 'RUNNER_TEMP environment variable not set',
         };
     }
-    // Create a unique temp file name based on original path
+    // Create a unique temp directory so module references resolve correctly
     const sanitizedName = path.basename(originalFilePath).replace(/[^a-zA-Z0-9.-]/g, '_');
-    const tempFileName = `base_${Date.now()}_${sanitizedName}`;
-    const tempFilePath = path.join(runnerTemp, tempFileName);
+    const tempDirName = `base_${Date.now()}_${sanitizedName.replace(/\.bicep$/i, '')}`;
+    const tempDir = path.join(runnerTemp, tempDirName);
+    const tempFilePath = path.join(tempDir, path.basename(originalFilePath));
     try {
-        // Write content to temp file
+        fs.mkdirSync(tempDir, { recursive: true });
+        // Write content to temp file inside the temp dir
         fs.writeFileSync(tempFilePath, content, 'utf-8');
         log.debug(`Wrote base content to temp file: ${tempFilePath}`);
+        // Copy modules directory from alongside the original file (if it exists)
+        const originalDir = path.dirname(originalFilePath);
+        const modulesDir = path.join(originalDir, 'modules');
+        if (fs.existsSync(modulesDir)) {
+            const tempModulesDir = path.join(tempDir, 'modules');
+            fs.cpSync(modulesDir, tempModulesDir, { recursive: true });
+            log.debug(`Copied modules from ${modulesDir} to ${tempModulesDir}`);
+        }
         // Compile the temp file
         const result = await compileBicepFile(bicepCliPath, tempFilePath);
         // Return result with original file path for clearer logging
@@ -31350,11 +31360,11 @@ async function compileBicepContent(bicepCliPath, content, originalFilePath) {
         };
     }
     finally {
-        // Clean up temp file
+        // Clean up temp directory
         try {
-            if (fs.existsSync(tempFilePath)) {
-                fs.unlinkSync(tempFilePath);
-                log.debug(`Cleaned up temp file: ${tempFilePath}`);
+            if (fs.existsSync(tempDir)) {
+                fs.rmSync(tempDir, { recursive: true, force: true });
+                log.debug(`Cleaned up temp dir: ${tempDir}`);
             }
         }
         catch {
