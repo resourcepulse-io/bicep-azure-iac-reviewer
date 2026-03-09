@@ -352,8 +352,15 @@ async function run(): Promise<void> {
 
     // Set action outputs
     core.setOutput('resources_detected', resourcesWithChange.length.toString());
-    core.setOutput('analysis_status', 'success');
 
+    // Block merge if a blocking policy rule fired (Pro only)
+    if (analysisResult.blocked === true) {
+      core.setOutput('analysis_status', 'blocked');
+      core.setFailed('ResourcePulse: merge blocked by policy violation. See PR comment for details.');
+      return;
+    }
+
+    core.setOutput('analysis_status', 'success');
     log.info('Azure IaC Reviewer completed successfully');
   } catch (error) {
     if (error instanceof Error) {
