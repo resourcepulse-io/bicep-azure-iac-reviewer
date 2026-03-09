@@ -30179,6 +30179,7 @@ async function analyzeResources(resources, options = {}) {
                 success: true,
                 source: 'backend',
                 markdown,
+                blocked: backendResult.response.blocked === true,
             };
         }
     }
@@ -32502,6 +32503,12 @@ async function run() {
         await createOrUpdateComment(octokit, prContext, commentBody, commentMode);
         // Set action outputs
         core.setOutput('resources_detected', resourcesWithChange.length.toString());
+        // Block merge if a blocking policy rule fired (Pro only)
+        if (analysisResult.blocked === true) {
+            core.setOutput('analysis_status', 'blocked');
+            core.setFailed('ResourcePulse: merge blocked by policy violation. See PR comment for details.');
+            return;
+        }
         core.setOutput('analysis_status', 'success');
         log.info('Azure IaC Reviewer completed successfully');
     }
