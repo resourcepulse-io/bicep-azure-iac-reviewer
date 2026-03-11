@@ -14,6 +14,7 @@ export interface AnalysisResult {
   source: 'backend' | 'local';
   markdown: string; // Pre-formatted message ready for PR comment
   error?: string; // Error message when backend fails
+  blocked?: boolean; // true if a blocking policy rule fired (Pro only)
 }
 
 /**
@@ -87,6 +88,7 @@ interface BackendResponse {
   markdown?: string;
   message?: string;
   error?: string;
+  blocked?: boolean;
 }
 
 /**
@@ -439,6 +441,7 @@ export async function analyzeResources(
         success: true,
         source: 'backend',
         markdown,
+        blocked: backendResult.response.blocked === true,
       };
     }
   }
