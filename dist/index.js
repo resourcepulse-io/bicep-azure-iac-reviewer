@@ -30815,6 +30815,18 @@ const log = __importStar(__nccwpck_require__(6555));
  * @returns SKU string if found, undefined otherwise
  */
 function extractSku(resource) {
+    // AKS: vmSize lives in properties.agentPoolProfiles[0].vmSize.
+    // This takes priority over sku.tier ("Standard"/"Free") because node VMs are
+    // the actual cost driver — the management fee is a fixed ~$73/month add-on.
+    if (resource.properties && typeof resource.properties === 'object') {
+        const props = resource.properties;
+        if (Array.isArray(props.agentPoolProfiles) && props.agentPoolProfiles.length > 0) {
+            const firstPool = props.agentPoolProfiles[0];
+            if (firstPool.vmSize && typeof firstPool.vmSize === 'string') {
+                return firstPool.vmSize;
+            }
+        }
+    }
     // Try resource.sku
     if (resource.sku && typeof resource.sku === 'object') {
         const sku = resource.sku;

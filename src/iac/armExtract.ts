@@ -51,6 +51,19 @@ interface RegionResolutionContext {
  * @returns SKU string if found, undefined otherwise
  */
 function extractSku(resource: Record<string, unknown>): string | undefined {
+  // AKS: vmSize lives in properties.agentPoolProfiles[0].vmSize.
+  // This takes priority over sku.tier ("Standard"/"Free") because node VMs are
+  // the actual cost driver — the management fee is a fixed ~$73/month add-on.
+  if (resource.properties && typeof resource.properties === 'object') {
+    const props = resource.properties as Record<string, unknown>;
+    if (Array.isArray(props.agentPoolProfiles) && props.agentPoolProfiles.length > 0) {
+      const firstPool = props.agentPoolProfiles[0] as Record<string, unknown>;
+      if (firstPool.vmSize && typeof firstPool.vmSize === 'string') {
+        return firstPool.vmSize;
+      }
+    }
+  }
+
   // Try resource.sku
   if (resource.sku && typeof resource.sku === 'object') {
     const sku = resource.sku as Record<string, unknown>;
