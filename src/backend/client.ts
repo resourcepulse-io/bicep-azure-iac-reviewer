@@ -61,10 +61,13 @@ export interface ApiResource {
   kind: string;
   region?: string;
   sku?: string;
+  tier?: string;
+  shardCount?: number;
   count: number;
   change: string;
   oldSku?: string;
   oldRegion?: string;
+  oldShardCount?: number;
   tags?: Record<string, string>;
 }
 
@@ -216,11 +219,20 @@ function toApiResource(resource: SanitizedResource): ApiResource {
     change: resource.change,
   };
 
+  if (resource.tier !== undefined) {
+    apiResource.tier = resource.tier;
+  }
+  if (resource.shardCount !== undefined) {
+    apiResource.shardCount = resource.shardCount;
+  }
   if (resource.oldSku !== undefined) {
     apiResource.oldSku = resource.oldSku;
   }
   if (resource.oldRegion !== undefined) {
     apiResource.oldRegion = resource.oldRegion;
+  }
+  if (resource.oldShardCount !== undefined) {
+    apiResource.oldShardCount = resource.oldShardCount;
   }
   if (resource.tags) {
     apiResource.tags = resource.tags;
