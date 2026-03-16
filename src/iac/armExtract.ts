@@ -8,6 +8,8 @@ export interface ResourceMetadata {
   type: string;
   kind: string;
   sku?: string;
+  tier?: string;
+  shardCount?: number;
   region?: string;
   apiVersion?: string;
   properties?: Record<string, unknown>;
@@ -102,6 +104,37 @@ function extractSku(resource: Record<string, unknown>): string | undefined {
     }
   }
 
+  return undefined;
+}
+
+/**
+ * Extract tier from an ARM resource (Redis-specific: sku.name holds tier when sku.family is present)
+ * @param resource - ARM resource object
+ * @returns Tier string if found, undefined otherwise
+ */
+function extractTier(resource: Record<string, unknown>): string | undefined {
+  if (resource.sku && typeof resource.sku === 'object') {
+    const sku = resource.sku as Record<string, unknown>;
+    // Redis pattern: { name: 'Standard', family: 'C', capacity: 2 } — name is the tier
+    if (sku.family && typeof sku.family === 'string' && sku.name && typeof sku.name === 'string') {
+      return sku.name;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Extract shard count from an ARM resource (Redis Premium: properties.shardCount)
+ * @param resource - ARM resource object
+ * @returns Shard count if found, undefined otherwise
+ */
+function extractShardCount(resource: Record<string, unknown>): number | undefined {
+  if (resource.properties && typeof resource.properties === 'object') {
+    const properties = resource.properties as Record<string, unknown>;
+    if (properties.shardCount != null && typeof properties.shardCount === 'number') {
+      return properties.shardCount;
+    }
+  }
   return undefined;
 }
 
@@ -231,6 +264,8 @@ function extractSingleResourceMetadata(
   // Pass raw ARM type as kind - the backend handles mapping to short names
   const kind = type;
   const sku = extractSku(resource);
+  const tier = extractTier(resource);
+  const shardCount = extractShardCount(resource);
   const region = extractRegion(resource, context);
   const apiVersion = extractApiVersion(resource);
   const properties = extractProperties(resource);
@@ -244,6 +279,12 @@ function extractSingleResourceMetadata(
   // Only include optional fields if they exist
   if (sku !== undefined) {
     metadata.sku = sku;
+  }
+  if (tier !== undefined) {
+    metadata.tier = tier;
+  }
+  if (shardCount !== undefined) {
+    metadata.shardCount = shardCount;
   }
   if (region !== undefined) {
     metadata.region = region;

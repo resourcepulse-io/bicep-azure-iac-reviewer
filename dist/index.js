@@ -30010,11 +30010,20 @@ function toApiResource(resource) {
         count: resource.count,
         change: resource.change,
     };
+    if (resource.tier !== undefined) {
+        apiResource.tier = resource.tier;
+    }
+    if (resource.shardCount !== undefined) {
+        apiResource.shardCount = resource.shardCount;
+    }
     if (resource.oldSku !== undefined) {
         apiResource.oldSku = resource.oldSku;
     }
     if (resource.oldRegion !== undefined) {
         apiResource.oldRegion = resource.oldRegion;
+    }
+    if (resource.oldShardCount !== undefined) {
+        apiResource.oldShardCount = resource.oldShardCount;
     }
     if (resource.tags) {
         apiResource.tags = resource.tags;
@@ -30857,6 +30866,35 @@ function extractSku(resource) {
     return undefined;
 }
 /**
+ * Extract tier from an ARM resource (Redis-specific: sku.name holds tier when sku.family is present)
+ * @param resource - ARM resource object
+ * @returns Tier string if found, undefined otherwise
+ */
+function extractTier(resource) {
+    if (resource.sku && typeof resource.sku === 'object') {
+        const sku = resource.sku;
+        // Redis pattern: { name: 'Standard', family: 'C', capacity: 2 } — name is the tier
+        if (sku.family && typeof sku.family === 'string' && sku.name && typeof sku.name === 'string') {
+            return sku.name;
+        }
+    }
+    return undefined;
+}
+/**
+ * Extract shard count from an ARM resource (Redis Premium: properties.shardCount)
+ * @param resource - ARM resource object
+ * @returns Shard count if found, undefined otherwise
+ */
+function extractShardCount(resource) {
+    if (resource.properties && typeof resource.properties === 'object') {
+        const properties = resource.properties;
+        if (properties.shardCount != null && typeof properties.shardCount === 'number') {
+            return properties.shardCount;
+        }
+    }
+    return undefined;
+}
+/**
  * Extract region/location from an ARM resource
  * @param resource - ARM resource object
  * @returns Region string if found, undefined otherwise
@@ -30955,6 +30993,8 @@ function extractSingleResourceMetadata(resource, context) {
     // Pass raw ARM type as kind - the backend handles mapping to short names
     const kind = type;
     const sku = extractSku(resource);
+    const tier = extractTier(resource);
+    const shardCount = extractShardCount(resource);
     const region = extractRegion(resource, context);
     const apiVersion = extractApiVersion(resource);
     const properties = extractProperties(resource);
@@ -30966,6 +31006,12 @@ function extractSingleResourceMetadata(resource, context) {
     // Only include optional fields if they exist
     if (sku !== undefined) {
         metadata.sku = sku;
+    }
+    if (tier !== undefined) {
+        metadata.tier = tier;
+    }
+    if (shardCount !== undefined) {
+        metadata.shardCount = shardCount;
     }
     if (region !== undefined) {
         metadata.region = region;
@@ -31579,8 +31625,10 @@ function hasChanges(base, head) {
     if (base.region !== head.region) {
         return true;
     }
-    // For now, we consider only SKU and region changes as significant
-    // Other property changes don't affect cost estimation
+    // Shard count change is significant for Redis Premium (affects cost)
+    if (base.shardCount !== head.shardCount) {
+        return true;
+    }
     return false;
 }
 /**
@@ -31645,10 +31693,13 @@ function diffResources(baseResources, headResources) {
                             type: headResource.type,
                             kind: headResource.kind,
                             change: 'modified',
+                            tier: headResource.tier,
                             oldSku: unmatchedBase.sku,
                             newSku: headResource.sku,
                             oldRegion: unmatchedBase.region,
                             newRegion: headResource.region,
+                            oldShardCount: unmatchedBase.shardCount,
+                            newShardCount: headResource.shardCount,
                             properties: headResource.properties,
                             tags: headResource.tags,
                         });
@@ -31667,8 +31718,10 @@ function diffResources(baseResources, headResources) {
                 type: headResource.type,
                 kind: headResource.kind,
                 change: 'added',
+                tier: headResource.tier,
                 newSku: headResource.sku,
                 newRegion: headResource.region,
+                newShardCount: headResource.shardCount,
                 properties: headResource.properties,
                 tags: headResource.tags,
             });
@@ -31684,10 +31737,13 @@ function diffResources(baseResources, headResources) {
                     type: headResource.type,
                     kind: headResource.kind,
                     change: 'modified',
+                    tier: headResource.tier,
                     oldSku: baseResource.sku,
                     newSku: headResource.sku,
                     oldRegion: baseResource.region,
                     newRegion: headResource.region,
+                    oldShardCount: baseResource.shardCount,
+                    newShardCount: headResource.shardCount,
                     properties: headResource.properties,
                     tags: headResource.tags,
                 });
@@ -31712,8 +31768,10 @@ function diffResources(baseResources, headResources) {
                     type: baseResource.type,
                     kind: baseResource.kind,
                     change: 'removed',
+                    tier: baseResource.tier,
                     oldSku: baseResource.sku,
                     oldRegion: baseResource.region,
+                    oldShardCount: baseResource.shardCount,
                     tags: baseResource.tags,
                 });
                 removed++;
@@ -32013,7 +32071,7 @@ function sanitizeProperties(properties, removedFields) {
  * @returns Sanitized resource
  */
 function sanitizeSingleResource(resource, removedFields, options = {}) {
-    const { change = 'modified', oldSku, oldRegion } = options;
+    const { change = 'modified', oldSku, oldRegion, oldShardCount } = options;
     const sanitized = {
         kind: resource.kind,
         count: 1, // Each resource counts as 1; aggregation happens at a higher level if needed
@@ -32023,16 +32081,27 @@ function sanitizeSingleResource(resource, removedFields, options = {}) {
     if (resource.sku) {
         sanitized.sku = resource.sku;
     }
+    // Tier is safe to include (e.g., "Standard", "Premium")
+    if (resource.tier) {
+        sanitized.tier = resource.tier;
+    }
+    // Shard count is safe to include (numeric, non-identifying)
+    if (resource.shardCount !== undefined) {
+        sanitized.shardCount = resource.shardCount;
+    }
     // Region is safe to include (e.g., "eastus")
     if (resource.region) {
         sanitized.region = resource.region;
     }
-    // Include old SKU/region for modified resources (tracks upgrades/downgrades)
+    // Include old SKU/region/shardCount for modified resources (tracks upgrades/downgrades)
     if (oldSku !== undefined) {
         sanitized.oldSku = oldSku;
     }
     if (oldRegion !== undefined) {
         sanitized.oldRegion = oldRegion;
+    }
+    if (oldShardCount !== undefined) {
+        sanitized.oldShardCount = oldShardCount;
     }
     // Keep type for internal use (optional in API)
     sanitized.type = resource.type;
@@ -32098,11 +32167,12 @@ function sanitizeResourcesWithChanges(resourcesWithChange) {
     log.debug(`Sanitizing ${resourcesWithChange.length} resource(s) with individual change types`);
     const removedFields = new Set();
     const sanitizedResources = [];
-    for (const { resource, change, oldSku, oldRegion } of resourcesWithChange) {
+    for (const { resource, change, oldSku, oldRegion, oldShardCount } of resourcesWithChange) {
         const sanitized = sanitizeSingleResource(resource, removedFields, {
             change,
             oldSku,
             oldRegion,
+            oldShardCount,
         });
         sanitizedResources.push(sanitized);
     }
@@ -32370,6 +32440,8 @@ async function run() {
                                     type: diff.type,
                                     kind: diff.kind,
                                     sku: diff.newSku,
+                                    tier: diff.tier,
+                                    shardCount: diff.newShardCount,
                                     region: diff.newRegion,
                                     properties: diff.properties,
                                     tags: diff.tags,
@@ -32379,6 +32451,7 @@ async function run() {
                                     change: diff.change === 'unchanged' ? 'modified' : diff.change,
                                     oldSku: diff.oldSku,
                                     oldRegion: diff.oldRegion,
+                                    oldShardCount: diff.oldShardCount,
                                 });
                             }
                         }
