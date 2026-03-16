@@ -49,10 +49,13 @@ export interface ApiResource {
     kind: string;
     region?: string;
     sku?: string;
+    tier?: string;
+    shardCount?: number;
     count: number;
     change: string;
     oldSku?: string;
     oldRegion?: string;
+    oldShardCount?: number;
     tags?: Record<string, string>;
 }
 /**

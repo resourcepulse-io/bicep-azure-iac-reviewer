@@ -204,6 +204,8 @@ async function run(): Promise<void> {
                   type: diff.type,
                   kind: diff.kind,
                   sku: diff.newSku,
+                  tier: diff.tier,
+                  shardCount: diff.newShardCount,
                   region: diff.newRegion,
                   properties: diff.properties,
                   tags: diff.tags,
@@ -214,6 +216,7 @@ async function run(): Promise<void> {
                   change: diff.change === 'unchanged' ? 'modified' : diff.change,
                   oldSku: diff.oldSku,
                   oldRegion: diff.oldRegion,
+                  oldShardCount: diff.oldShardCount,
                 });
               }
             } else {

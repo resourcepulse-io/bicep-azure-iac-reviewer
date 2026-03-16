@@ -14,11 +14,14 @@ export interface SanitizedResource {
   kind: string;
   region?: string;
   sku?: string;
+  tier?: string;
+  shardCount?: number;
   count: number;
   change: ResourceChangeType;
   // Fields for tracking changes on modified resources (SKU/region upgrades/downgrades)
   oldSku?: string;
   oldRegion?: string;
+  oldShardCount?: number;
   // Tag keys only, with empty values
   tags?: Record<string, string>;
   // Fields kept for internal use but not sent to API
@@ -308,6 +311,7 @@ interface SanitizeResourceOptions {
   change?: ResourceChangeType;
   oldSku?: string;
   oldRegion?: string;
+  oldShardCount?: number;
 }
 
 /**
@@ -322,7 +326,7 @@ function sanitizeSingleResource(
   removedFields: Set<string>,
   options: SanitizeResourceOptions = {}
 ): SanitizedResource {
-  const { change = 'modified', oldSku, oldRegion } = options;
+  const { change = 'modified', oldSku, oldRegion, oldShardCount } = options;
 
   const sanitized: SanitizedResource = {
     kind: resource.kind,
@@ -335,17 +339,30 @@ function sanitizeSingleResource(
     sanitized.sku = resource.sku;
   }
 
+  // Tier is safe to include (e.g., "Standard", "Premium")
+  if (resource.tier) {
+    sanitized.tier = resource.tier;
+  }
+
+  // Shard count is safe to include (numeric, non-identifying)
+  if (resource.shardCount !== undefined) {
+    sanitized.shardCount = resource.shardCount;
+  }
+
   // Region is safe to include (e.g., "eastus")
   if (resource.region) {
     sanitized.region = resource.region;
   }
 
-  // Include old SKU/region for modified resources (tracks upgrades/downgrades)
+  // Include old SKU/region/shardCount for modified resources (tracks upgrades/downgrades)
   if (oldSku !== undefined) {
     sanitized.oldSku = oldSku;
   }
   if (oldRegion !== undefined) {
     sanitized.oldRegion = oldRegion;
+  }
+  if (oldShardCount !== undefined) {
+    sanitized.oldShardCount = oldShardCount;
   }
 
   // Keep type for internal use (optional in API)
@@ -427,6 +444,7 @@ export interface ResourceWithChange {
   change: ResourceChangeType;
   oldSku?: string;
   oldRegion?: string;
+  oldShardCount?: number;
 }
 
 /**
@@ -442,11 +460,12 @@ export function sanitizeResourcesWithChanges(
   const removedFields = new Set<string>();
   const sanitizedResources: SanitizedResource[] = [];
 
-  for (const { resource, change, oldSku, oldRegion } of resourcesWithChange) {
+  for (const { resource, change, oldSku, oldRegion, oldShardCount } of resourcesWithChange) {
     const sanitized = sanitizeSingleResource(resource, removedFields, {
       change,
       oldSku,
       oldRegion,
+      oldShardCount,
     });
     sanitizedResources.push(sanitized);
   }

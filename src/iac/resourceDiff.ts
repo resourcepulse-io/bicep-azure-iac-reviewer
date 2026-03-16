@@ -13,10 +13,13 @@ export interface ResourceDiff {
   type: string;
   kind: string;
   change: ResourceDiffChange;
+  tier?: string;
   newSku?: string;
   newRegion?: string;
+  newShardCount?: number;
   oldSku?: string;
   oldRegion?: string;
+  oldShardCount?: number;
   properties?: Record<string, unknown>;
   tags?: Record<string, string>;
 }
@@ -85,8 +88,11 @@ function hasChanges(base: ResourceMetadata, head: ResourceMetadata): boolean {
     return true;
   }
 
-  // For now, we consider only SKU and region changes as significant
-  // Other property changes don't affect cost estimation
+  // Shard count change is significant for Redis Premium (affects cost)
+  if (base.shardCount !== head.shardCount) {
+    return true;
+  }
+
   return false;
 }
 
@@ -166,10 +172,13 @@ export function diffResources(
               type: headResource.type,
               kind: headResource.kind,
               change: 'modified',
+              tier: headResource.tier,
               oldSku: unmatchedBase.sku,
               newSku: headResource.sku,
               oldRegion: unmatchedBase.region,
               newRegion: headResource.region,
+              oldShardCount: unmatchedBase.shardCount,
+              newShardCount: headResource.shardCount,
               properties: headResource.properties,
               tags: headResource.tags,
             });
@@ -188,8 +197,10 @@ export function diffResources(
         type: headResource.type,
         kind: headResource.kind,
         change: 'added',
+        tier: headResource.tier,
         newSku: headResource.sku,
         newRegion: headResource.region,
+        newShardCount: headResource.shardCount,
         properties: headResource.properties,
         tags: headResource.tags,
       });
@@ -205,10 +216,13 @@ export function diffResources(
           type: headResource.type,
           kind: headResource.kind,
           change: 'modified',
+          tier: headResource.tier,
           oldSku: baseResource.sku,
           newSku: headResource.sku,
           oldRegion: baseResource.region,
           newRegion: headResource.region,
+          oldShardCount: baseResource.shardCount,
+          newShardCount: headResource.shardCount,
           properties: headResource.properties,
           tags: headResource.tags,
         });
@@ -234,8 +248,10 @@ export function diffResources(
           type: baseResource.type,
           kind: baseResource.kind,
           change: 'removed',
+          tier: baseResource.tier,
           oldSku: baseResource.sku,
           oldRegion: baseResource.region,
+          oldShardCount: baseResource.shardCount,
           tags: baseResource.tags,
         });
         removed++;
