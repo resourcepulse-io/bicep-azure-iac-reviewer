@@ -16,6 +16,16 @@ export interface ResourceDiff {
     oldRegion?: string;
     properties?: Record<string, unknown>;
     tags?: Record<string, string>;
+    osType?: string;
+    oldOsType?: string;
+    highAvailability?: string;
+    licenseType?: string;
+    oldLicenseType?: string;
+    messagingUnits?: number;
+    capacityUnits?: number;
+    oldHighAvailability?: string;
+    oldMessagingUnits?: number;
+    oldCapacityUnits?: number;
 }
 /**
  * Result of diffing resources between base and head

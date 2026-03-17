@@ -5,12 +5,14 @@ describe('Resource Diff Module', () => {
   const createResource = (
     type: string,
     sku?: string,
-    region?: string
+    region?: string,
+    overrides: Partial<ResourceMetadata> = {}
   ): ResourceMetadata => ({
     type,
     kind: type, // kind now equals type
     sku,
     region,
+    ...overrides,
   });
 
   describe('diffResources', () => {
@@ -126,7 +128,7 @@ describe('Resource Diff Module', () => {
       });
     });
 
-    describe('Modified Resources (SKU Changes)', () => {
+    describe('Modified Resources', () => {
       it('should detect SKU upgrade', () => {
         const baseResources: ResourceMetadata[] = [
           createResource('Microsoft.Web/serverfarms', 'B1', 'eastus'),
@@ -204,6 +206,62 @@ describe('Resource Diff Module', () => {
           newSku: 'Standard_GRS',
           oldRegion: 'eastus',
           newRegion: 'westeurope',
+        });
+      });
+
+      it('should detect SQL license type changes', () => {
+        const baseResources: ResourceMetadata[] = [
+          createResource(
+            'Microsoft.Sql/servers/databases',
+            'GP_Gen5_2',
+            'eastus',
+            { licenseType: 'LicenseIncluded' }
+          ),
+        ];
+        const headResources: ResourceMetadata[] = [
+          createResource(
+            'Microsoft.Sql/servers/databases',
+            'GP_Gen5_2',
+            'eastus',
+            { licenseType: 'BasePrice' }
+          ),
+        ];
+
+        const result = diffResources(baseResources, headResources);
+
+        expect(result.modified).toBe(1);
+        expect(result.diffs[0]).toMatchObject({
+          change: 'modified',
+          licenseType: 'BasePrice',
+          oldLicenseType: 'LicenseIncluded',
+        });
+      });
+
+      it('should detect OS type changes', () => {
+        const baseResources: ResourceMetadata[] = [
+          createResource(
+            'Microsoft.Compute/virtualMachines',
+            'Standard_D2s_v3',
+            'eastus',
+            { osType: 'windows' }
+          ),
+        ];
+        const headResources: ResourceMetadata[] = [
+          createResource(
+            'Microsoft.Compute/virtualMachines',
+            'Standard_D2s_v3',
+            'eastus',
+            { osType: 'linux' }
+          ),
+        ];
+
+        const result = diffResources(baseResources, headResources);
+
+        expect(result.modified).toBe(1);
+        expect(result.diffs[0]).toMatchObject({
+          change: 'modified',
+          osType: 'linux',
+          oldOsType: 'windows',
         });
       });
     });

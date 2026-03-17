@@ -557,6 +557,56 @@ describe('ARM Extract Module', () => {
       expect(result.resolvedRegions).toEqual(['westeurope']);
     });
 
+    it('should extract literal VM OS type values', () => {
+      const armJson = JSON.stringify({
+        $schema:
+          'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        resources: [
+          {
+            type: 'Microsoft.Compute/virtualMachines',
+            apiVersion: '2021-03-01',
+            properties: {
+              storageProfile: {
+                osDisk: {
+                  osType: 'Windows',
+                },
+              },
+            },
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson);
+
+      expect(result.resources[0].osType).toBe('windows');
+    });
+
+    it('should not misclassify expression-based VM OS type values', () => {
+      const armJson = JSON.stringify({
+        $schema:
+          'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        resources: [
+          {
+            type: 'Microsoft.Compute/virtualMachines',
+            apiVersion: '2021-03-01',
+            properties: {
+              storageProfile: {
+                osDisk: {
+                  osType: "[parameters('osType')]",
+                },
+              },
+            },
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson);
+
+      expect(result.resources[0].osType).toBeUndefined();
+    });
+
     it('should resolve resourceGroup().location using param values', () => {
       const armJson = JSON.stringify({
         $schema:

@@ -19,6 +19,18 @@ export interface ResourceDiff {
   oldRegion?: string;
   properties?: Record<string, unknown>;
   tags?: Record<string, string>;
+  // Cost-dimension fields (current/new state)
+  osType?: string;
+  oldOsType?: string;
+  highAvailability?: string;
+  licenseType?: string;
+  oldLicenseType?: string;
+  messagingUnits?: number;
+  capacityUnits?: number;
+  // Previous state for mutable cost dimensions (modified resources only)
+  oldHighAvailability?: string;
+  oldMessagingUnits?: number;
+  oldCapacityUnits?: number;
 }
 
 /**
@@ -75,18 +87,13 @@ function getTypeOnlyKey(resource: ResourceMetadata): string {
  * @returns True if resources have changes worth reporting
  */
 function hasChanges(base: ResourceMetadata, head: ResourceMetadata): boolean {
-  // SKU change is always significant (affects cost)
-  if (base.sku !== head.sku) {
-    return true;
-  }
-
-  // Region change is significant (affects cost and compliance)
-  if (base.region !== head.region) {
-    return true;
-  }
-
-  // For now, we consider only SKU and region changes as significant
-  // Other property changes don't affect cost estimation
+  if (base.sku !== head.sku) return true;
+  if (base.region !== head.region) return true;
+  if (base.osType !== head.osType) return true;
+  if (base.licenseType !== head.licenseType) return true;
+  if (base.highAvailability !== head.highAvailability) return true;
+  if (base.messagingUnits !== head.messagingUnits) return true;
+  if (base.capacityUnits !== head.capacityUnits) return true;
   return false;
 }
 
@@ -172,6 +179,16 @@ export function diffResources(
               newRegion: headResource.region,
               properties: headResource.properties,
               tags: headResource.tags,
+              osType: headResource.osType,
+              oldOsType: unmatchedBase.osType,
+              licenseType: headResource.licenseType,
+              oldLicenseType: unmatchedBase.licenseType,
+              highAvailability: headResource.highAvailability,
+              oldHighAvailability: unmatchedBase.highAvailability,
+              messagingUnits: headResource.messagingUnits,
+              oldMessagingUnits: unmatchedBase.messagingUnits,
+              capacityUnits: headResource.capacityUnits,
+              oldCapacityUnits: unmatchedBase.capacityUnits,
             });
             modified++;
             log.debug(`Modified: ${headResource.type} (${unmatchedBase.sku} -> ${headResource.sku})`);
@@ -192,6 +209,11 @@ export function diffResources(
         newRegion: headResource.region,
         properties: headResource.properties,
         tags: headResource.tags,
+        osType: headResource.osType,
+        licenseType: headResource.licenseType,
+        highAvailability: headResource.highAvailability,
+        messagingUnits: headResource.messagingUnits,
+        capacityUnits: headResource.capacityUnits,
       });
       added++;
       log.debug(`Added: ${headResource.type} (${headResource.sku || 'no sku'})`);
@@ -211,6 +233,16 @@ export function diffResources(
           newRegion: headResource.region,
           properties: headResource.properties,
           tags: headResource.tags,
+          osType: headResource.osType,
+          oldOsType: baseResource.osType,
+          licenseType: headResource.licenseType,
+          oldLicenseType: baseResource.licenseType,
+          highAvailability: headResource.highAvailability,
+          oldHighAvailability: baseResource.highAvailability,
+          messagingUnits: headResource.messagingUnits,
+          oldMessagingUnits: baseResource.messagingUnits,
+          capacityUnits: headResource.capacityUnits,
+          oldCapacityUnits: baseResource.capacityUnits,
         });
         modified++;
         log.debug(`Modified: ${headResource.type} (${baseResource.sku} -> ${headResource.sku})`);
@@ -237,6 +269,11 @@ export function diffResources(
           oldSku: baseResource.sku,
           oldRegion: baseResource.region,
           tags: baseResource.tags,
+          osType: baseResource.osType,
+          licenseType: baseResource.licenseType,
+          highAvailability: baseResource.highAvailability,
+          messagingUnits: baseResource.messagingUnits,
+          capacityUnits: baseResource.capacityUnits,
         });
         removed++;
         log.debug(`Removed: ${baseResource.type} (${baseResource.sku || 'no sku'})`);

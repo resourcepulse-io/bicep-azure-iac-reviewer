@@ -16,6 +16,16 @@ export interface SanitizedResource {
     oldSku?: string;
     oldRegion?: string;
     tags?: Record<string, string>;
+    osType?: string;
+    oldOsType?: string;
+    highAvailability?: string;
+    oldHighAvailability?: string;
+    licenseType?: string;
+    oldLicenseType?: string;
+    messagingUnits?: number;
+    oldMessagingUnits?: number;
+    capacityUnits?: number;
+    oldCapacityUnits?: number;
     type?: string;
     apiVersion?: string;
     safeProperties?: Record<string, unknown>;
@@ -51,6 +61,11 @@ export interface ResourceWithChange {
     change: ResourceChangeType;
     oldSku?: string;
     oldRegion?: string;
+    oldOsType?: string;
+    oldHighAvailability?: string;
+    oldLicenseType?: string;
+    oldMessagingUnits?: number;
+    oldCapacityUnits?: number;
 }
 /**
  * Sanitize resources with individual change types

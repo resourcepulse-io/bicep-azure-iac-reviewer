@@ -65,6 +65,16 @@ export interface ApiResource {
   oldSku?: string;
   oldRegion?: string;
   tags?: Record<string, string>;
+  osType?: string;
+  oldOsType?: string;
+  highAvailability?: string;
+  oldHighAvailability?: string;
+  licenseType?: string;
+  oldLicenseType?: string;
+  messagingUnits?: number;
+  oldMessagingUnits?: number;
+  capacityUnits?: number;
+  oldCapacityUnits?: number;
 }
 
 /**
@@ -214,15 +224,19 @@ function toApiResource(resource: SanitizedResource): ApiResource {
     change: resource.change,
   };
 
-  if (resource.oldSku !== undefined) {
-    apiResource.oldSku = resource.oldSku;
-  }
-  if (resource.oldRegion !== undefined) {
-    apiResource.oldRegion = resource.oldRegion;
-  }
-  if (resource.tags) {
-    apiResource.tags = resource.tags;
-  }
+  if (resource.oldSku !== undefined) apiResource.oldSku = resource.oldSku;
+  if (resource.oldRegion !== undefined) apiResource.oldRegion = resource.oldRegion;
+  if (resource.tags) apiResource.tags = resource.tags;
+  if (resource.osType !== undefined) apiResource.osType = resource.osType;
+  if (resource.oldOsType !== undefined) apiResource.oldOsType = resource.oldOsType;
+  if (resource.highAvailability !== undefined) apiResource.highAvailability = resource.highAvailability;
+  if (resource.oldHighAvailability !== undefined) apiResource.oldHighAvailability = resource.oldHighAvailability;
+  if (resource.licenseType !== undefined) apiResource.licenseType = resource.licenseType;
+  if (resource.oldLicenseType !== undefined) apiResource.oldLicenseType = resource.oldLicenseType;
+  if (resource.messagingUnits !== undefined) apiResource.messagingUnits = resource.messagingUnits;
+  if (resource.oldMessagingUnits !== undefined) apiResource.oldMessagingUnits = resource.oldMessagingUnits;
+  if (resource.capacityUnits !== undefined) apiResource.capacityUnits = resource.capacityUnits;
+  if (resource.oldCapacityUnits !== undefined) apiResource.oldCapacityUnits = resource.oldCapacityUnits;
 
   return apiResource;
 }

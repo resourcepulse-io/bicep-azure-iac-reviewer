@@ -21,6 +21,17 @@ export interface SanitizedResource {
   oldRegion?: string;
   // Tag keys only, with empty values
   tags?: Record<string, string>;
+  // Cost-dimension fields
+  osType?: string;
+  oldOsType?: string;
+  highAvailability?: string;
+  oldHighAvailability?: string;
+  licenseType?: string;
+  oldLicenseType?: string;
+  messagingUnits?: number;
+  oldMessagingUnits?: number;
+  capacityUnits?: number;
+  oldCapacityUnits?: number;
   // Fields kept for internal use but not sent to API
   type?: string;
   apiVersion?: string;
@@ -308,6 +319,11 @@ interface SanitizeResourceOptions {
   change?: ResourceChangeType;
   oldSku?: string;
   oldRegion?: string;
+  oldOsType?: string;
+  oldHighAvailability?: string;
+  oldLicenseType?: string;
+  oldMessagingUnits?: number;
+  oldCapacityUnits?: number;
 }
 
 /**
@@ -322,7 +338,16 @@ function sanitizeSingleResource(
   removedFields: Set<string>,
   options: SanitizeResourceOptions = {}
 ): SanitizedResource {
-  const { change = 'modified', oldSku, oldRegion } = options;
+  const {
+    change = 'modified',
+    oldSku,
+    oldRegion,
+    oldOsType,
+    oldHighAvailability,
+    oldLicenseType,
+    oldMessagingUnits,
+    oldCapacityUnits,
+  } = options;
 
   const sanitized: SanitizedResource = {
     kind: resource.kind,
@@ -331,22 +356,26 @@ function sanitizeSingleResource(
   };
 
   // SKU is safe to include (e.g., "Standard_D2s_v3")
-  if (resource.sku) {
-    sanitized.sku = resource.sku;
-  }
+  if (resource.sku) sanitized.sku = resource.sku;
 
   // Region is safe to include (e.g., "eastus")
-  if (resource.region) {
-    sanitized.region = resource.region;
-  }
+  if (resource.region) sanitized.region = resource.region;
 
   // Include old SKU/region for modified resources (tracks upgrades/downgrades)
-  if (oldSku !== undefined) {
-    sanitized.oldSku = oldSku;
-  }
-  if (oldRegion !== undefined) {
-    sanitized.oldRegion = oldRegion;
-  }
+  if (oldSku !== undefined) sanitized.oldSku = oldSku;
+  if (oldRegion !== undefined) sanitized.oldRegion = oldRegion;
+
+  // Cost-dimension fields — safe enum values, no PII
+  if (resource.osType !== undefined) sanitized.osType = resource.osType;
+  if (oldOsType !== undefined) sanitized.oldOsType = oldOsType;
+  if (resource.highAvailability !== undefined) sanitized.highAvailability = resource.highAvailability;
+  if (oldHighAvailability !== undefined) sanitized.oldHighAvailability = oldHighAvailability;
+  if (resource.licenseType !== undefined) sanitized.licenseType = resource.licenseType;
+  if (oldLicenseType !== undefined) sanitized.oldLicenseType = oldLicenseType;
+  if (resource.messagingUnits !== undefined) sanitized.messagingUnits = resource.messagingUnits;
+  if (oldMessagingUnits !== undefined) sanitized.oldMessagingUnits = oldMessagingUnits;
+  if (resource.capacityUnits !== undefined) sanitized.capacityUnits = resource.capacityUnits;
+  if (oldCapacityUnits !== undefined) sanitized.oldCapacityUnits = oldCapacityUnits;
 
   // Keep type for internal use (optional in API)
   sanitized.type = resource.type;
@@ -427,6 +456,12 @@ export interface ResourceWithChange {
   change: ResourceChangeType;
   oldSku?: string;
   oldRegion?: string;
+  oldOsType?: string;
+  // Previous state for mutable cost dimensions (modified resources only)
+  oldHighAvailability?: string;
+  oldLicenseType?: string;
+  oldMessagingUnits?: number;
+  oldCapacityUnits?: number;
 }
 
 /**
@@ -442,11 +477,26 @@ export function sanitizeResourcesWithChanges(
   const removedFields = new Set<string>();
   const sanitizedResources: SanitizedResource[] = [];
 
-  for (const { resource, change, oldSku, oldRegion } of resourcesWithChange) {
+  for (const {
+    resource,
+    change,
+    oldSku,
+    oldRegion,
+    oldOsType,
+    oldHighAvailability,
+    oldLicenseType,
+    oldMessagingUnits,
+    oldCapacityUnits,
+  } of resourcesWithChange) {
     const sanitized = sanitizeSingleResource(resource, removedFields, {
       change,
       oldSku,
       oldRegion,
+      oldOsType,
+      oldHighAvailability,
+      oldLicenseType,
+      oldMessagingUnits,
+      oldCapacityUnits,
     });
     sanitizedResources.push(sanitized);
   }

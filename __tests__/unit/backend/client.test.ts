@@ -23,6 +23,10 @@ describe('analyzeResources', () => {
       change: 'modified',
       oldSku: 'Standard_B2s',
       oldRegion: 'westus2',
+      osType: 'linux',
+      oldOsType: 'windows',
+      licenseType: 'BasePrice',
+      oldLicenseType: 'LicenseIncluded',
       tags: {
         environment: '',
         owner: '',
@@ -291,6 +295,10 @@ describe('analyzeResources', () => {
         change: 'modified',
         oldSku: 'Standard_B2s',
         oldRegion: 'westus2',
+        osType: 'linux',
+        oldOsType: 'windows',
+        licenseType: 'BasePrice',
+        oldLicenseType: 'LicenseIncluded',
         tags: {
           environment: '',
           owner: '',

@@ -10,6 +10,11 @@ export interface ResourceMetadata {
     apiVersion?: string;
     properties?: Record<string, unknown>;
     tags?: Record<string, string>;
+    osType?: string;
+    highAvailability?: string;
+    licenseType?: string;
+    messagingUnits?: number;
+    capacityUnits?: number;
 }
 /**
  * Result of extracting resource metadata from ARM JSON

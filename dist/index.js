@@ -30010,15 +30010,32 @@ function toApiResource(resource) {
         count: resource.count,
         change: resource.change,
     };
-    if (resource.oldSku !== undefined) {
+    if (resource.oldSku !== undefined)
         apiResource.oldSku = resource.oldSku;
-    }
-    if (resource.oldRegion !== undefined) {
+    if (resource.oldRegion !== undefined)
         apiResource.oldRegion = resource.oldRegion;
-    }
-    if (resource.tags) {
+    if (resource.tags)
         apiResource.tags = resource.tags;
-    }
+    if (resource.osType !== undefined)
+        apiResource.osType = resource.osType;
+    if (resource.oldOsType !== undefined)
+        apiResource.oldOsType = resource.oldOsType;
+    if (resource.highAvailability !== undefined)
+        apiResource.highAvailability = resource.highAvailability;
+    if (resource.oldHighAvailability !== undefined)
+        apiResource.oldHighAvailability = resource.oldHighAvailability;
+    if (resource.licenseType !== undefined)
+        apiResource.licenseType = resource.licenseType;
+    if (resource.oldLicenseType !== undefined)
+        apiResource.oldLicenseType = resource.oldLicenseType;
+    if (resource.messagingUnits !== undefined)
+        apiResource.messagingUnits = resource.messagingUnits;
+    if (resource.oldMessagingUnits !== undefined)
+        apiResource.oldMessagingUnits = resource.oldMessagingUnits;
+    if (resource.capacityUnits !== undefined)
+        apiResource.capacityUnits = resource.capacityUnits;
+    if (resource.oldCapacityUnits !== undefined)
+        apiResource.oldCapacityUnits = resource.oldCapacityUnits;
     return apiResource;
 }
 /**
@@ -30928,6 +30945,116 @@ function extractTags(resource) {
     }
     return undefined;
 }
+function normalizeLiteralOsType(value) {
+    if (typeof value !== 'string' || isArmExpression(value)) {
+        return undefined;
+    }
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'windows') {
+        return 'windows';
+    }
+    if (normalized === 'linux') {
+        return 'linux';
+    }
+    return undefined;
+}
+/**
+ * Extract OS type for App Service plans, VMs, and VMSS.
+ * Returns "linux" or "windows", or undefined for other resource types.
+ */
+function extractOsType(resource, type) {
+    const lowerType = type.toLowerCase();
+    // App Service Plan: top-level "kind" field contains "linux" for Linux plans; absent or "app" = Windows
+    if (lowerType === 'microsoft.web/serverfarms') {
+        const kind = resource.kind;
+        if (typeof kind === 'string' && !isArmExpression(kind) && kind.toLowerCase().includes('linux')) {
+            return 'linux';
+        }
+        return 'windows';
+    }
+    // Virtual Machine: properties.storageProfile.osDisk.osType
+    if (lowerType === 'microsoft.compute/virtualmachines') {
+        const props = resource.properties;
+        const storageProfile = props?.storageProfile;
+        const osDisk = storageProfile?.osDisk;
+        return normalizeLiteralOsType(osDisk?.osType);
+    }
+    // Virtual Machine Scale Set: properties.virtualMachineProfile.storageProfile.osDisk.osType
+    if (lowerType === 'microsoft.compute/virtualmachinescalesets') {
+        const props = resource.properties;
+        const vmProfile = props?.virtualMachineProfile;
+        const storageProfile = vmProfile?.storageProfile;
+        const osDisk = storageProfile?.osDisk;
+        return normalizeLiteralOsType(osDisk?.osType);
+    }
+    return undefined;
+}
+/**
+ * Extract PostgreSQL Flexible Server high-availability mode.
+ * Returns "Disabled" | "SameZone" | "ZoneRedundant", or undefined for other types.
+ * Defaults to "Disabled" when the property is absent on a PostgreSQL resource
+ * (absence means HA is off — safe default that avoids double-counting).
+ */
+function extractHighAvailability(resource, type) {
+    if (type.toLowerCase() !== 'microsoft.dbforpostgresql/flexibleservers') {
+        return undefined;
+    }
+    const props = resource.properties;
+    const ha = props?.highAvailability;
+    const mode = ha?.mode;
+    if (typeof mode === 'string') {
+        return mode;
+    }
+    return 'Disabled';
+}
+/**
+ * Extract SQL Database license type.
+ * Returns "LicenseIncluded" | "BasePrice", or undefined for other resource types.
+ * When absent on a SQL DB resource, returns undefined — the API applies "LicenseIncluded" as default.
+ */
+function extractLicenseType(resource, type) {
+    if (type.toLowerCase() !== 'microsoft.sql/servers/databases') {
+        return undefined;
+    }
+    const props = resource.properties;
+    const licenseType = props?.licenseType;
+    if (typeof licenseType === 'string') {
+        return licenseType;
+    }
+    return undefined;
+}
+/**
+ * Extract Service Bus messaging unit count (sku.capacity).
+ * Only applicable to Microsoft.ServiceBus/namespaces Premium tier.
+ * Returns undefined for other resource types or when capacity is absent.
+ */
+function extractMessagingUnits(resource, type) {
+    if (type.toLowerCase() !== 'microsoft.servicebus/namespaces') {
+        return undefined;
+    }
+    const sku = resource.sku;
+    const capacity = sku?.capacity;
+    if (typeof capacity === 'number' && capacity > 0) {
+        return capacity;
+    }
+    return undefined;
+}
+/**
+ * Extract APIM capacity unit count (sku.capacity).
+ * Only applicable to Microsoft.ApiManagement/service.
+ * Returns undefined for other resource types or when capacity is absent.
+ */
+function extractCapacityUnits(resource, type) {
+    if (type.toLowerCase() !== 'microsoft.apimanagement/service') {
+        return undefined;
+    }
+    const sku = resource.sku;
+    const capacity = sku?.capacity;
+    if (typeof capacity === 'number' && capacity > 0) {
+        return capacity;
+    }
+    return undefined;
+}
 /**
  * Extract relevant properties from an ARM resource
  * Only includes non-sensitive properties that may be useful for analysis
@@ -30958,26 +31085,36 @@ function extractSingleResourceMetadata(resource, context) {
     const apiVersion = extractApiVersion(resource);
     const properties = extractProperties(resource);
     const tags = extractTags(resource);
+    const osType = extractOsType(resource, type);
+    const highAvailability = extractHighAvailability(resource, type);
+    const licenseType = extractLicenseType(resource, type);
+    const messagingUnits = extractMessagingUnits(resource, type);
+    const capacityUnits = extractCapacityUnits(resource, type);
     const metadata = {
         type,
         kind,
     };
     // Only include optional fields if they exist
-    if (sku !== undefined) {
+    if (sku !== undefined)
         metadata.sku = sku;
-    }
-    if (region !== undefined) {
+    if (region !== undefined)
         metadata.region = region;
-    }
-    if (apiVersion !== undefined) {
+    if (apiVersion !== undefined)
         metadata.apiVersion = apiVersion;
-    }
-    if (properties !== undefined) {
+    if (properties !== undefined)
         metadata.properties = properties;
-    }
-    if (tags !== undefined) {
+    if (tags !== undefined)
         metadata.tags = tags;
-    }
+    if (osType !== undefined)
+        metadata.osType = osType;
+    if (highAvailability !== undefined)
+        metadata.highAvailability = highAvailability;
+    if (licenseType !== undefined)
+        metadata.licenseType = licenseType;
+    if (messagingUnits !== undefined)
+        metadata.messagingUnits = messagingUnits;
+    if (capacityUnits !== undefined)
+        metadata.capacityUnits = capacityUnits;
     return metadata;
 }
 /**
@@ -31570,16 +31707,20 @@ function getTypeOnlyKey(resource) {
  * @returns True if resources have changes worth reporting
  */
 function hasChanges(base, head) {
-    // SKU change is always significant (affects cost)
-    if (base.sku !== head.sku) {
+    if (base.sku !== head.sku)
         return true;
-    }
-    // Region change is significant (affects cost and compliance)
-    if (base.region !== head.region) {
+    if (base.region !== head.region)
         return true;
-    }
-    // For now, we consider only SKU and region changes as significant
-    // Other property changes don't affect cost estimation
+    if (base.osType !== head.osType)
+        return true;
+    if (base.licenseType !== head.licenseType)
+        return true;
+    if (base.highAvailability !== head.highAvailability)
+        return true;
+    if (base.messagingUnits !== head.messagingUnits)
+        return true;
+    if (base.capacityUnits !== head.capacityUnits)
+        return true;
     return false;
 }
 /**
@@ -31650,6 +31791,16 @@ function diffResources(baseResources, headResources) {
                             newRegion: headResource.region,
                             properties: headResource.properties,
                             tags: headResource.tags,
+                            osType: headResource.osType,
+                            oldOsType: unmatchedBase.osType,
+                            licenseType: headResource.licenseType,
+                            oldLicenseType: unmatchedBase.licenseType,
+                            highAvailability: headResource.highAvailability,
+                            oldHighAvailability: unmatchedBase.highAvailability,
+                            messagingUnits: headResource.messagingUnits,
+                            oldMessagingUnits: unmatchedBase.messagingUnits,
+                            capacityUnits: headResource.capacityUnits,
+                            oldCapacityUnits: unmatchedBase.capacityUnits,
                         });
                         modified++;
                         log.debug(`Modified: ${headResource.type} (${unmatchedBase.sku} -> ${headResource.sku})`);
@@ -31670,6 +31821,11 @@ function diffResources(baseResources, headResources) {
                 newRegion: headResource.region,
                 properties: headResource.properties,
                 tags: headResource.tags,
+                osType: headResource.osType,
+                licenseType: headResource.licenseType,
+                highAvailability: headResource.highAvailability,
+                messagingUnits: headResource.messagingUnits,
+                capacityUnits: headResource.capacityUnits,
             });
             added++;
             log.debug(`Added: ${headResource.type} (${headResource.sku || 'no sku'})`);
@@ -31689,6 +31845,16 @@ function diffResources(baseResources, headResources) {
                     newRegion: headResource.region,
                     properties: headResource.properties,
                     tags: headResource.tags,
+                    osType: headResource.osType,
+                    oldOsType: baseResource.osType,
+                    licenseType: headResource.licenseType,
+                    oldLicenseType: baseResource.licenseType,
+                    highAvailability: headResource.highAvailability,
+                    oldHighAvailability: baseResource.highAvailability,
+                    messagingUnits: headResource.messagingUnits,
+                    oldMessagingUnits: baseResource.messagingUnits,
+                    capacityUnits: headResource.capacityUnits,
+                    oldCapacityUnits: baseResource.capacityUnits,
                 });
                 modified++;
                 log.debug(`Modified: ${headResource.type} (${baseResource.sku} -> ${headResource.sku})`);
@@ -31714,6 +31880,11 @@ function diffResources(baseResources, headResources) {
                     oldSku: baseResource.sku,
                     oldRegion: baseResource.region,
                     tags: baseResource.tags,
+                    osType: baseResource.osType,
+                    licenseType: baseResource.licenseType,
+                    highAvailability: baseResource.highAvailability,
+                    messagingUnits: baseResource.messagingUnits,
+                    capacityUnits: baseResource.capacityUnits,
                 });
                 removed++;
                 log.debug(`Removed: ${baseResource.type} (${baseResource.sku || 'no sku'})`);
@@ -32012,27 +32183,44 @@ function sanitizeProperties(properties, removedFields) {
  * @returns Sanitized resource
  */
 function sanitizeSingleResource(resource, removedFields, options = {}) {
-    const { change = 'modified', oldSku, oldRegion } = options;
+    const { change = 'modified', oldSku, oldRegion, oldOsType, oldHighAvailability, oldLicenseType, oldMessagingUnits, oldCapacityUnits, } = options;
     const sanitized = {
         kind: resource.kind,
         count: 1, // Each resource counts as 1; aggregation happens at a higher level if needed
         change,
     };
     // SKU is safe to include (e.g., "Standard_D2s_v3")
-    if (resource.sku) {
+    if (resource.sku)
         sanitized.sku = resource.sku;
-    }
     // Region is safe to include (e.g., "eastus")
-    if (resource.region) {
+    if (resource.region)
         sanitized.region = resource.region;
-    }
     // Include old SKU/region for modified resources (tracks upgrades/downgrades)
-    if (oldSku !== undefined) {
+    if (oldSku !== undefined)
         sanitized.oldSku = oldSku;
-    }
-    if (oldRegion !== undefined) {
+    if (oldRegion !== undefined)
         sanitized.oldRegion = oldRegion;
-    }
+    // Cost-dimension fields — safe enum values, no PII
+    if (resource.osType !== undefined)
+        sanitized.osType = resource.osType;
+    if (oldOsType !== undefined)
+        sanitized.oldOsType = oldOsType;
+    if (resource.highAvailability !== undefined)
+        sanitized.highAvailability = resource.highAvailability;
+    if (oldHighAvailability !== undefined)
+        sanitized.oldHighAvailability = oldHighAvailability;
+    if (resource.licenseType !== undefined)
+        sanitized.licenseType = resource.licenseType;
+    if (oldLicenseType !== undefined)
+        sanitized.oldLicenseType = oldLicenseType;
+    if (resource.messagingUnits !== undefined)
+        sanitized.messagingUnits = resource.messagingUnits;
+    if (oldMessagingUnits !== undefined)
+        sanitized.oldMessagingUnits = oldMessagingUnits;
+    if (resource.capacityUnits !== undefined)
+        sanitized.capacityUnits = resource.capacityUnits;
+    if (oldCapacityUnits !== undefined)
+        sanitized.oldCapacityUnits = oldCapacityUnits;
     // Keep type for internal use (optional in API)
     sanitized.type = resource.type;
     // API version is safe to include (e.g., "2023-01-01")
@@ -32097,11 +32285,16 @@ function sanitizeResourcesWithChanges(resourcesWithChange) {
     log.debug(`Sanitizing ${resourcesWithChange.length} resource(s) with individual change types`);
     const removedFields = new Set();
     const sanitizedResources = [];
-    for (const { resource, change, oldSku, oldRegion } of resourcesWithChange) {
+    for (const { resource, change, oldSku, oldRegion, oldOsType, oldHighAvailability, oldLicenseType, oldMessagingUnits, oldCapacityUnits, } of resourcesWithChange) {
         const sanitized = sanitizeSingleResource(resource, removedFields, {
             change,
             oldSku,
             oldRegion,
+            oldOsType,
+            oldHighAvailability,
+            oldLicenseType,
+            oldMessagingUnits,
+            oldCapacityUnits,
         });
         sanitizedResources.push(sanitized);
     }
@@ -32372,12 +32565,22 @@ async function run() {
                                     region: diff.newRegion,
                                     properties: diff.properties,
                                     tags: diff.tags,
+                                    osType: diff.osType,
+                                    highAvailability: diff.highAvailability,
+                                    licenseType: diff.licenseType,
+                                    messagingUnits: diff.messagingUnits,
+                                    capacityUnits: diff.capacityUnits,
                                 };
                                 resourcesWithChange.push({
                                     resource,
                                     change: diff.change === 'unchanged' ? 'modified' : diff.change,
                                     oldSku: diff.oldSku,
                                     oldRegion: diff.oldRegion,
+                                    oldOsType: diff.oldOsType,
+                                    oldHighAvailability: diff.oldHighAvailability,
+                                    oldLicenseType: diff.oldLicenseType,
+                                    oldMessagingUnits: diff.oldMessagingUnits,
+                                    oldCapacityUnits: diff.oldCapacityUnits,
                                 });
                             }
                         }

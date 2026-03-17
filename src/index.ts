@@ -207,6 +207,11 @@ async function run(): Promise<void> {
                   region: diff.newRegion,
                   properties: diff.properties,
                   tags: diff.tags,
+                  osType: diff.osType,
+                  highAvailability: diff.highAvailability,
+                  licenseType: diff.licenseType,
+                  messagingUnits: diff.messagingUnits,
+                  capacityUnits: diff.capacityUnits,
                 };
 
                 resourcesWithChange.push({
@@ -214,6 +219,11 @@ async function run(): Promise<void> {
                   change: diff.change === 'unchanged' ? 'modified' : diff.change,
                   oldSku: diff.oldSku,
                   oldRegion: diff.oldRegion,
+                  oldOsType: diff.oldOsType,
+                  oldHighAvailability: diff.oldHighAvailability,
+                  oldLicenseType: diff.oldLicenseType,
+                  oldMessagingUnits: diff.oldMessagingUnits,
+                  oldCapacityUnits: diff.oldCapacityUnits,
                 });
               }
             } else {

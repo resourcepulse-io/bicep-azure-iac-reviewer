@@ -53,6 +53,16 @@ export interface ApiResource {
     oldSku?: string;
     oldRegion?: string;
     tags?: Record<string, string>;
+    osType?: string;
+    oldOsType?: string;
+    highAvailability?: string;
+    oldHighAvailability?: string;
+    licenseType?: string;
+    oldLicenseType?: string;
+    messagingUnits?: number;
+    oldMessagingUnits?: number;
+    capacityUnits?: number;
+    oldCapacityUnits?: number;
 }
 /**
  * Full context for backend API call

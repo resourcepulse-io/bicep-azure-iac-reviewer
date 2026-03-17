@@ -12,6 +12,12 @@ export interface ResourceMetadata {
   apiVersion?: string;
   properties?: Record<string, unknown>;
   tags?: Record<string, string>;
+  // Cost-dimension fields extracted per resource type
+  osType?: string;           // "linux" | "windows"  (App Service, VM, VMSS)
+  highAvailability?: string; // "Disabled" | "SameZone" | "ZoneRedundant"  (PostgreSQL)
+  licenseType?: string;      // "LicenseIncluded" | "BasePrice"  (SQL Database)
+  messagingUnits?: number;   // sku.capacity  (Service Bus Premium)
+  capacityUnits?: number;    // sku.capacity  (APIM)
 }
 
 /**
@@ -198,6 +204,128 @@ function extractTags(
   return undefined;
 }
 
+function normalizeLiteralOsType(value: unknown): string | undefined {
+  if (typeof value !== 'string' || isArmExpression(value)) {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'windows') {
+    return 'windows';
+  }
+  if (normalized === 'linux') {
+    return 'linux';
+  }
+
+  return undefined;
+}
+
+/**
+ * Extract OS type for App Service plans, VMs, and VMSS.
+ * Returns "linux" or "windows", or undefined for other resource types.
+ */
+function extractOsType(resource: Record<string, unknown>, type: string): string | undefined {
+  const lowerType = type.toLowerCase();
+
+  // App Service Plan: top-level "kind" field contains "linux" for Linux plans; absent or "app" = Windows
+  if (lowerType === 'microsoft.web/serverfarms') {
+    const kind = resource.kind;
+    if (typeof kind === 'string' && !isArmExpression(kind) && kind.toLowerCase().includes('linux')) {
+      return 'linux';
+    }
+    return 'windows';
+  }
+
+  // Virtual Machine: properties.storageProfile.osDisk.osType
+  if (lowerType === 'microsoft.compute/virtualmachines') {
+    const props = resource.properties as Record<string, unknown> | undefined;
+    const storageProfile = props?.storageProfile as Record<string, unknown> | undefined;
+    const osDisk = storageProfile?.osDisk as Record<string, unknown> | undefined;
+    return normalizeLiteralOsType(osDisk?.osType);
+  }
+
+  // Virtual Machine Scale Set: properties.virtualMachineProfile.storageProfile.osDisk.osType
+  if (lowerType === 'microsoft.compute/virtualmachinescalesets') {
+    const props = resource.properties as Record<string, unknown> | undefined;
+    const vmProfile = props?.virtualMachineProfile as Record<string, unknown> | undefined;
+    const storageProfile = vmProfile?.storageProfile as Record<string, unknown> | undefined;
+    const osDisk = storageProfile?.osDisk as Record<string, unknown> | undefined;
+    return normalizeLiteralOsType(osDisk?.osType);
+  }
+
+  return undefined;
+}
+
+/**
+ * Extract PostgreSQL Flexible Server high-availability mode.
+ * Returns "Disabled" | "SameZone" | "ZoneRedundant", or undefined for other types.
+ * Defaults to "Disabled" when the property is absent on a PostgreSQL resource
+ * (absence means HA is off — safe default that avoids double-counting).
+ */
+function extractHighAvailability(resource: Record<string, unknown>, type: string): string | undefined {
+  if (type.toLowerCase() !== 'microsoft.dbforpostgresql/flexibleservers') {
+    return undefined;
+  }
+  const props = resource.properties as Record<string, unknown> | undefined;
+  const ha = props?.highAvailability as Record<string, unknown> | undefined;
+  const mode = ha?.mode;
+  if (typeof mode === 'string') {
+    return mode;
+  }
+  return 'Disabled';
+}
+
+/**
+ * Extract SQL Database license type.
+ * Returns "LicenseIncluded" | "BasePrice", or undefined for other resource types.
+ * When absent on a SQL DB resource, returns undefined — the API applies "LicenseIncluded" as default.
+ */
+function extractLicenseType(resource: Record<string, unknown>, type: string): string | undefined {
+  if (type.toLowerCase() !== 'microsoft.sql/servers/databases') {
+    return undefined;
+  }
+  const props = resource.properties as Record<string, unknown> | undefined;
+  const licenseType = props?.licenseType;
+  if (typeof licenseType === 'string') {
+    return licenseType;
+  }
+  return undefined;
+}
+
+/**
+ * Extract Service Bus messaging unit count (sku.capacity).
+ * Only applicable to Microsoft.ServiceBus/namespaces Premium tier.
+ * Returns undefined for other resource types or when capacity is absent.
+ */
+function extractMessagingUnits(resource: Record<string, unknown>, type: string): number | undefined {
+  if (type.toLowerCase() !== 'microsoft.servicebus/namespaces') {
+    return undefined;
+  }
+  const sku = resource.sku as Record<string, unknown> | undefined;
+  const capacity = sku?.capacity;
+  if (typeof capacity === 'number' && capacity > 0) {
+    return capacity;
+  }
+  return undefined;
+}
+
+/**
+ * Extract APIM capacity unit count (sku.capacity).
+ * Only applicable to Microsoft.ApiManagement/service.
+ * Returns undefined for other resource types or when capacity is absent.
+ */
+function extractCapacityUnits(resource: Record<string, unknown>, type: string): number | undefined {
+  if (type.toLowerCase() !== 'microsoft.apimanagement/service') {
+    return undefined;
+  }
+  const sku = resource.sku as Record<string, unknown> | undefined;
+  const capacity = sku?.capacity;
+  if (typeof capacity === 'number' && capacity > 0) {
+    return capacity;
+  }
+  return undefined;
+}
+
 /**
  * Extract relevant properties from an ARM resource
  * Only includes non-sensitive properties that may be useful for analysis
@@ -235,6 +363,11 @@ function extractSingleResourceMetadata(
   const apiVersion = extractApiVersion(resource);
   const properties = extractProperties(resource);
   const tags = extractTags(resource);
+  const osType = extractOsType(resource, type);
+  const highAvailability = extractHighAvailability(resource, type);
+  const licenseType = extractLicenseType(resource, type);
+  const messagingUnits = extractMessagingUnits(resource, type);
+  const capacityUnits = extractCapacityUnits(resource, type);
 
   const metadata: ResourceMetadata = {
     type,
@@ -242,21 +375,16 @@ function extractSingleResourceMetadata(
   };
 
   // Only include optional fields if they exist
-  if (sku !== undefined) {
-    metadata.sku = sku;
-  }
-  if (region !== undefined) {
-    metadata.region = region;
-  }
-  if (apiVersion !== undefined) {
-    metadata.apiVersion = apiVersion;
-  }
-  if (properties !== undefined) {
-    metadata.properties = properties;
-  }
-  if (tags !== undefined) {
-    metadata.tags = tags;
-  }
+  if (sku !== undefined) metadata.sku = sku;
+  if (region !== undefined) metadata.region = region;
+  if (apiVersion !== undefined) metadata.apiVersion = apiVersion;
+  if (properties !== undefined) metadata.properties = properties;
+  if (tags !== undefined) metadata.tags = tags;
+  if (osType !== undefined) metadata.osType = osType;
+  if (highAvailability !== undefined) metadata.highAvailability = highAvailability;
+  if (licenseType !== undefined) metadata.licenseType = licenseType;
+  if (messagingUnits !== undefined) metadata.messagingUnits = messagingUnits;
+  if (capacityUnits !== undefined) metadata.capacityUnits = capacityUnits;
 
   return metadata;
 }
