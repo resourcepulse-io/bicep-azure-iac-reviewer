@@ -45216,8 +45216,8 @@ function extractSku(resource) {
         const sku = resource.sku;
         // Redis/Cache: SKU is split across name (tier), family, and capacity → build "{family}{capacity}"
         // e.g. { name: 'Basic', family: 'C', capacity: 1 } → "C1"
-        if (sku.family && typeof sku.family === 'string' && sku.capacity != null) {
-            return `${sku.family}${String(sku.capacity)}`;
+        if (sku.family && typeof sku.family === 'string' && typeof sku.capacity === 'number') {
+            return `${sku.family}${sku.capacity}`;
         }
         // AKS: sku.name is generic ("Base"), pricing uses sku.tier ("Standard")
         // Prefer tier when name is a generic AKS identifier
@@ -45244,8 +45244,8 @@ function extractSku(resource) {
             const sku = properties.sku;
             // Redis/Cache: SKU is split across name (tier), family, and capacity → build "{family}{capacity}"
             // e.g. { name: 'Basic', family: 'C', capacity: 1 } → "C1"
-            if (sku.family && typeof sku.family === 'string' && sku.capacity != null) {
-                return `${sku.family}${String(sku.capacity)}`;
+            if (sku.family && typeof sku.family === 'string' && typeof sku.capacity === 'number') {
+                return `${sku.family}${sku.capacity}`;
             }
             if (sku.name && typeof sku.name === 'string') {
                 return sku.name;
