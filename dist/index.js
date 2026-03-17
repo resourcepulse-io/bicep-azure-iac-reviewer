@@ -31197,6 +31197,16 @@ function extractResourcesRecursive(resources, context, accumulated = []) {
             continue;
         }
         const resourceObj = resource;
+        // Skip Microsoft.Web/sites that are not function apps.
+        // Web app instances (kind: "app") have no SKU — the plan (serverfarm) already covers their cost.
+        // Function apps (kind contains "functionapp") are also skipped because the consumption plan
+        // (Y1/Dynamic) or the premium plan is already extracted and priced separately.
+        const resourceType = resourceObj.type && typeof resourceObj.type === 'string'
+            ? resourceObj.type.toLowerCase()
+            : '';
+        if (resourceType === 'microsoft.web/sites') {
+            continue;
+        }
         // Extract metadata from current resource
         const metadata = extractSingleResourceMetadata(resourceObj, context);
         accumulated.push(metadata);

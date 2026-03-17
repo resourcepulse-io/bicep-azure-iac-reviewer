@@ -56,7 +56,7 @@ describe('ARM Extract Module', () => {
         resources: [
           { type: 'Microsoft.Compute/virtualMachines', apiVersion: '2021-03-01' },
           { type: 'Microsoft.Web/serverfarms', apiVersion: '2021-02-01' },
-          { type: 'Microsoft.Web/sites', apiVersion: '2021-02-01' },
+          // Microsoft.Web/sites is intentionally skipped — the serverfarm plan covers its cost
           { type: 'Microsoft.Sql/servers/databases', apiVersion: '2021-05-01' },
           { type: 'Microsoft.Storage/storageAccounts', apiVersion: '2021-04-01' },
           { type: 'Microsoft.Network/virtualNetworks', apiVersion: '2021-03-01' },
@@ -67,15 +67,14 @@ describe('ARM Extract Module', () => {
 
       const result = extractResourceMetadata(armJson);
 
-      expect(result.resourceCount).toBe(8);
+      expect(result.resourceCount).toBe(7);
       expect(result.resources[0].kind).toBe('Microsoft.Compute/virtualMachines');
       expect(result.resources[1].kind).toBe('Microsoft.Web/serverfarms');
-      expect(result.resources[2].kind).toBe('Microsoft.Web/sites');
-      expect(result.resources[3].kind).toBe('Microsoft.Sql/servers/databases');
-      expect(result.resources[4].kind).toBe('Microsoft.Storage/storageAccounts');
-      expect(result.resources[5].kind).toBe('Microsoft.Network/virtualNetworks');
-      expect(result.resources[6].kind).toBe('Microsoft.Network/networkSecurityGroups');
-      expect(result.resources[7].kind).toBe('Microsoft.Unknown/resource');
+      expect(result.resources[2].kind).toBe('Microsoft.Sql/servers/databases');
+      expect(result.resources[3].kind).toBe('Microsoft.Storage/storageAccounts');
+      expect(result.resources[4].kind).toBe('Microsoft.Network/virtualNetworks');
+      expect(result.resources[5].kind).toBe('Microsoft.Network/networkSecurityGroups');
+      expect(result.resources[6].kind).toBe('Microsoft.Unknown/resource');
     });
 
     it('should extract SKU from sku.name', () => {
@@ -127,8 +126,8 @@ describe('ARM Extract Module', () => {
         contentVersion: '1.0.0.0',
         resources: [
           {
-            type: 'Microsoft.Web/sites',
-            apiVersion: '2021-02-01',
+            type: 'Microsoft.Sql/servers/databases',
+            apiVersion: '2021-05-01',
             properties: {
               sku: 'S1',
             },
