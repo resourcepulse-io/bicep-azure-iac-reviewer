@@ -10,10 +10,13 @@ export interface ResourceDiff {
     type: string;
     kind: string;
     change: ResourceDiffChange;
+    tier?: string;
     newSku?: string;
     newRegion?: string;
+    newShardCount?: number;
     oldSku?: string;
     oldRegion?: string;
+    oldShardCount?: number;
     properties?: Record<string, unknown>;
     tags?: Record<string, string>;
     osType?: string;

@@ -14,11 +14,14 @@ export interface SanitizedResource {
   kind: string;
   region?: string;
   sku?: string;
+  tier?: string;
+  shardCount?: number;
   count: number;
   change: ResourceChangeType;
   // Fields for tracking changes on modified resources (SKU/region upgrades/downgrades)
   oldSku?: string;
   oldRegion?: string;
+  oldShardCount?: number;
   // Tag keys only, with empty values
   tags?: Record<string, string>;
   // Cost-dimension fields
@@ -319,6 +322,7 @@ interface SanitizeResourceOptions {
   change?: ResourceChangeType;
   oldSku?: string;
   oldRegion?: string;
+  oldShardCount?: number;
   oldOsType?: string;
   oldHighAvailability?: string;
   oldLicenseType?: string;
@@ -342,6 +346,7 @@ function sanitizeSingleResource(
     change = 'modified',
     oldSku,
     oldRegion,
+    oldShardCount,
     oldOsType,
     oldHighAvailability,
     oldLicenseType,
@@ -358,14 +363,31 @@ function sanitizeSingleResource(
   // SKU is safe to include (e.g., "Standard_D2s_v3")
   if (resource.sku) sanitized.sku = resource.sku;
 
+  // Tier is safe to include (e.g., "Standard", "Premium")
+  if (resource.tier) {
+    sanitized.tier = resource.tier;
+  }
+
+  // Shard count is safe to include (numeric, non-identifying)
+  if (resource.shardCount !== undefined) {
+    sanitized.shardCount = resource.shardCount;
+  }
+
   // Region is safe to include (e.g., "eastus")
   if (resource.region) sanitized.region = resource.region;
 
-  // Include old SKU/region for modified resources (tracks upgrades/downgrades)
-  if (oldSku !== undefined) sanitized.oldSku = oldSku;
-  if (oldRegion !== undefined) sanitized.oldRegion = oldRegion;
+  // Include old SKU/region/shardCount for modified resources (tracks upgrades/downgrades)
+  if (oldSku !== undefined) {
+    sanitized.oldSku = oldSku;
+  }
+  if (oldRegion !== undefined) {
+    sanitized.oldRegion = oldRegion;
+  }
+  if (oldShardCount !== undefined) {
+    sanitized.oldShardCount = oldShardCount;
+  }
 
-  // Cost-dimension fields — safe enum values, no PII
+  // Cost-dimension fields - safe enum values, no PII
   if (resource.osType !== undefined) sanitized.osType = resource.osType;
   if (oldOsType !== undefined) sanitized.oldOsType = oldOsType;
   if (resource.highAvailability !== undefined) sanitized.highAvailability = resource.highAvailability;
@@ -456,6 +478,7 @@ export interface ResourceWithChange {
   change: ResourceChangeType;
   oldSku?: string;
   oldRegion?: string;
+  oldShardCount?: number;
   oldOsType?: string;
   // Previous state for mutable cost dimensions (modified resources only)
   oldHighAvailability?: string;
@@ -482,6 +505,7 @@ export function sanitizeResourcesWithChanges(
     change,
     oldSku,
     oldRegion,
+    oldShardCount,
     oldOsType,
     oldHighAvailability,
     oldLicenseType,
@@ -492,6 +516,7 @@ export function sanitizeResourcesWithChanges(
       change,
       oldSku,
       oldRegion,
+      oldShardCount,
       oldOsType,
       oldHighAvailability,
       oldLicenseType,

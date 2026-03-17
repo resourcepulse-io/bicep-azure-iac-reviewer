@@ -631,6 +631,7 @@ describe('analyzeResources', () => {
     });
 
     it('should log attempt to call backend', async () => {
+
       (global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -645,6 +646,70 @@ describe('analyzeResources', () => {
       expect(log.info).toHaveBeenCalledWith(
         'Attempting backend analysis at https://dev.resourcepulseapp.com'
       );
+    });
+  });
+
+  describe('Blocked Response Handling', () => {
+    it('should set blocked=true when backend returns blocked=true', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          markdown: '## Merge Blocked\n\nPolicy violation detected.',
+          blocked: true,
+        }),
+      });
+
+      const result = await analyzeResources(mockResources, {
+        apiKey: 'test-api-key',
+        callContext: mockCallContext,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.source).toBe('backend');
+      expect(result.blocked).toBe(true);
+    });
+
+    it('should set blocked=false when backend returns blocked=false', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          markdown: '## Analysis\n\nNo violations.',
+          blocked: false,
+        }),
+      });
+
+      const result = await analyzeResources(mockResources, {
+        apiKey: 'test-api-key',
+        callContext: mockCallContext,
+      });
+
+      expect(result.blocked).toBe(false);
+    });
+
+    it('should set blocked=false when backend omits the blocked field', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, markdown: '## Analysis' }),
+      });
+
+      const result = await analyzeResources(mockResources, {
+        apiKey: 'test-api-key',
+        callContext: mockCallContext,
+      });
+
+      expect(result.blocked).toBe(false);
+    });
+
+    it('should not set blocked on local fallback', async () => {
+      const result = await analyzeResources(mockResources);
+
+      expect(result.source).toBe('local');
+      expect(result.blocked).toBeUndefined();
     });
   });
 });

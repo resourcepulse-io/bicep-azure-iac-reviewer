@@ -18,14 +18,13 @@ Changed .bicep files detected
         ▼
 Compiled → resources extracted → anonymized
         │
-        ├─ api_key provided  ──────────────► Pro / Trial backend path
+        ├─ api_key provided  ──────────────► Starter / Team backend path
         │
         └─ no api_key        ──────────────► GitHub OIDC token obtained
                                              └─► Preview backend path (free, no signup)
                                                         │
                                                         ▼
-                                              Cost estimate + ruleset findings
-                                              posted as PR comment
+                                              Cost estimate posted as PR comment
 ```
 
 ResourcePulse never sees your source code. Only anonymized resource metadata (type, SKU, region, change type) is transmitted.
@@ -34,14 +33,18 @@ ResourcePulse never sees your source code. Only anonymized resource metadata (ty
 
 ## Plans
 
-| | **Preview** | **Trial** | **Pro** |
-|--|------------|-----------|---------|
-| Setup | No signup · uses OIDC | 14-day free trial | API key |
+| | **Preview** | **Starter** | **Team** |
+|--|------------|-------------|----------|
+| Setup | No signup · uses OIDC | API key | API key |
+| Price | Free | $29/mo | $79/mo |
 | Cost estimates | ✓ | ✓ | ✓ |
 | Ruleset findings | ✓ | ✓ | ✓ |
-| Org policy | — | ✓ | ✓ |
-| Repos | Unlimited (rate-limited) | 10 | 50 |
-| Analyses/month | 30 | 200 | 500 |
+| SKU suggestions | — | ✓ | ✓ |
+| Org policy | — | — | ✓ |
+| Repos | 1 (rate-limited) | 3 | 10 |
+| Analyses/month | 25 | 1,000 | 5,000 |
+
+Get an API key at [resourcepulseapp.com](https://www.resourcepulseapp.com).
 
 ---
 
@@ -77,7 +80,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-### Pro / Trial (API key)
+### Starter / Team (API key)
 
 ```yaml
 - uses: resourcepulse-io/azure-iac-reviewer@main
@@ -89,7 +92,7 @@ jobs:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-Get an API key at [resourcepulseapp.com](https://resourcepulseapp.com).
+Get an API key at [resourcepulseapp.com](https://www.resourcepulseapp.com).
 
 ---
 
@@ -125,8 +128,8 @@ Param file: infra/params/dev.bicepparam
 0 critical · 2 warnings · Status: **warn**
 
 ---
-<sub>Pricing: 20260207 | Ruleset: embedded-v1 | Policy: n/a | [ResourcePulse](https://resourcepulseapp.com)</sub>
-<sub>Mode: Preview · [Start 14-day trial →](https://resourcepulseapp.com/trial)</sub>
+<sub>Pricing: 20260207 | Ruleset: embedded-v1 | Policy: n/a | [ResourcePulse](https://www.resourcepulseapp.com)</sub>
+<sub>Mode: Preview · [Sign up free →](https://www.resourcepulseapp.com)</sub>
 
 ---
 
@@ -178,7 +181,7 @@ Tracked for ruleset findings (e.g. missing tags). No cost row produced.
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `api_key` | No | — | API key for Pro/Trial plans. If omitted, the action uses preview mode via OIDC. |
+| `api_key` | No | — | API key for Starter/Team plans. If omitted, the action uses preview mode via OIDC. |
 | `param_file` | No | — | Path to a `.bicepparam` file. Required for region resolution and cost estimates. |
 | `comment_mode` | No | `update` | `update` — edit existing comment in place. `new` — post a new comment each run. |
 | `main_region` | No | — | Fallback region (e.g. `westeurope`) when no `param_file` is available. |
@@ -247,7 +250,7 @@ permissions:
 
 **Backend returns 401**
 - For preview: confirm `id-token: write` is in the workflow permissions
-- For Pro/Trial: verify the `api_key` secret is set correctly
+- For Starter/Team: verify the `api_key` secret is set correctly
 
 **Compilation errors in comment**
 - Fix the Bicep syntax errors shown; the action continues analyzing other valid files
@@ -261,4 +264,4 @@ Business Source License 1.1 — see [LICENSE](LICENSE) for details. Converts to 
 ## Support
 
 - [Report an issue](https://github.com/resourcepulse-io/azure-iac-reviewer/issues)
-- [resourcepulseapp.com](https://resourcepulseapp.com)
+- [resourcepulseapp.com](https://www.resourcepulseapp.com)

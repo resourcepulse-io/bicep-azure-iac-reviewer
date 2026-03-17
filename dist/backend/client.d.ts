@@ -7,6 +7,7 @@ export interface AnalysisResult {
     source: 'backend' | 'local';
     markdown: string;
     error?: string;
+    blocked?: boolean;
 }
 /**
  * Repository metadata included in backend request
@@ -48,10 +49,13 @@ export interface ApiResource {
     kind: string;
     region?: string;
     sku?: string;
+    tier?: string;
+    shardCount?: number;
     count: number;
     change: string;
     oldSku?: string;
     oldRegion?: string;
+    oldShardCount?: number;
     tags?: Record<string, string>;
     osType?: string;
     oldOsType?: string;

@@ -11,10 +11,13 @@ export interface SanitizedResource {
     kind: string;
     region?: string;
     sku?: string;
+    tier?: string;
+    shardCount?: number;
     count: number;
     change: ResourceChangeType;
     oldSku?: string;
     oldRegion?: string;
+    oldShardCount?: number;
     tags?: Record<string, string>;
     osType?: string;
     oldOsType?: string;
@@ -61,6 +64,7 @@ export interface ResourceWithChange {
     change: ResourceChangeType;
     oldSku?: string;
     oldRegion?: string;
+    oldShardCount?: number;
     oldOsType?: string;
     oldHighAvailability?: string;
     oldLicenseType?: string;

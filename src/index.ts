@@ -204,6 +204,8 @@ async function run(): Promise<void> {
                   type: diff.type,
                   kind: diff.kind,
                   sku: diff.newSku,
+                  tier: diff.tier,
+                  shardCount: diff.newShardCount,
                   region: diff.newRegion,
                   properties: diff.properties,
                   tags: diff.tags,
@@ -219,6 +221,7 @@ async function run(): Promise<void> {
                   change: diff.change === 'unchanged' ? 'modified' : diff.change,
                   oldSku: diff.oldSku,
                   oldRegion: diff.oldRegion,
+                  oldShardCount: diff.oldShardCount,
                   oldOsType: diff.oldOsType,
                   oldHighAvailability: diff.oldHighAvailability,
                   oldLicenseType: diff.oldLicenseType,
@@ -362,8 +365,15 @@ async function run(): Promise<void> {
 
     // Set action outputs
     core.setOutput('resources_detected', resourcesWithChange.length.toString());
-    core.setOutput('analysis_status', 'success');
 
+    // Block merge if a blocking policy rule fired (Pro only)
+    if (analysisResult.blocked === true) {
+      core.setOutput('analysis_status', 'blocked');
+      core.setFailed('ResourcePulse: merge blocked by policy violation. See PR comment for details.');
+      return;
+    }
+
+    core.setOutput('analysis_status', 'success');
     log.info('Azure IaC Reviewer completed successfully');
   } catch (error) {
     if (error instanceof Error) {

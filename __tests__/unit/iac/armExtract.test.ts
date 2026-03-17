@@ -677,4 +677,75 @@ describe('ARM Extract Module', () => {
       expect(result.unresolvedLocations).toEqual([]);
     });
   });
+
+  describe('AKS agentPoolProfiles extraction', () => {
+    it('should extract vmSize from agentPoolProfiles as SKU', () => {
+      const armJson = JSON.stringify({
+        $schema: 'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        resources: [
+          {
+            type: 'Microsoft.ContainerService/managedClusters',
+            apiVersion: '2023-01-01',
+            name: 'myAks',
+            location: 'westeurope',
+            sku: { name: 'Base', tier: 'Standard' },
+            properties: {
+              agentPoolProfiles: [
+                { name: 'system', count: 3, vmSize: 'Standard_D4s_v5', mode: 'System' },
+              ],
+            },
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson);
+      expect(result.resources[0].sku).toBe('Standard_D4s_v5');
+    });
+
+    it('should fall back to sku.tier when agentPoolProfiles is absent', () => {
+      const armJson = JSON.stringify({
+        $schema: 'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        resources: [
+          {
+            type: 'Microsoft.ContainerService/managedClusters',
+            apiVersion: '2023-01-01',
+            name: 'myAks',
+            location: 'westeurope',
+            sku: { name: 'Base', tier: 'Standard' },
+            properties: {},
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson);
+      expect(result.resources[0].sku).toBe('Standard');
+    });
+
+    it('should use first pool vmSize when multiple pools are defined', () => {
+      const armJson = JSON.stringify({
+        $schema: 'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        resources: [
+          {
+            type: 'Microsoft.ContainerService/managedClusters',
+            apiVersion: '2023-01-01',
+            name: 'myAks',
+            location: 'westeurope',
+            sku: { name: 'Base', tier: 'Standard' },
+            properties: {
+              agentPoolProfiles: [
+                { name: 'system', vmSize: 'Standard_D4s_v5', mode: 'System' },
+                { name: 'user',   vmSize: 'Standard_D8s_v5', mode: 'User' },
+              ],
+            },
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson);
+      expect(result.resources[0].sku).toBe('Standard_D4s_v5');
+    });
+  });
 });

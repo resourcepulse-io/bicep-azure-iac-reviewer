@@ -30010,10 +30010,18 @@ function toApiResource(resource) {
         count: resource.count,
         change: resource.change,
     };
+    if (resource.tier !== undefined) {
+        apiResource.tier = resource.tier;
+    }
+    if (resource.shardCount !== undefined) {
+        apiResource.shardCount = resource.shardCount;
+    }
     if (resource.oldSku !== undefined)
         apiResource.oldSku = resource.oldSku;
     if (resource.oldRegion !== undefined)
         apiResource.oldRegion = resource.oldRegion;
+    if (resource.oldShardCount !== undefined)
+        apiResource.oldShardCount = resource.oldShardCount;
     if (resource.tags)
         apiResource.tags = resource.tags;
     if (resource.osType !== undefined)
@@ -30196,6 +30204,7 @@ async function analyzeResources(resources, options = {}) {
                 success: true,
                 source: 'backend',
                 markdown,
+                blocked: backendResult.response.blocked === true,
             };
         }
     }
@@ -30822,6 +30831,18 @@ const log = __importStar(__nccwpck_require__(6555));
  * @returns SKU string if found, undefined otherwise
  */
 function extractSku(resource) {
+    // AKS: vmSize lives in properties.agentPoolProfiles[0].vmSize.
+    // This takes priority over sku.tier ("Standard"/"Free") because node VMs are
+    // the actual cost driver — the management fee is a fixed ~$73/month add-on.
+    if (resource.properties && typeof resource.properties === 'object') {
+        const props = resource.properties;
+        if (Array.isArray(props.agentPoolProfiles) && props.agentPoolProfiles.length > 0) {
+            const firstPool = props.agentPoolProfiles[0];
+            if (firstPool.vmSize && typeof firstPool.vmSize === 'string') {
+                return firstPool.vmSize;
+            }
+        }
+    }
     // Try resource.sku
     if (resource.sku && typeof resource.sku === 'object') {
         const sku = resource.sku;
@@ -30868,6 +30889,35 @@ function extractSku(resource) {
             if (hw.vmSize && typeof hw.vmSize === 'string') {
                 return hw.vmSize;
             }
+        }
+    }
+    return undefined;
+}
+/**
+ * Extract tier from an ARM resource (Redis-specific: sku.name holds tier when sku.family is present)
+ * @param resource - ARM resource object
+ * @returns Tier string if found, undefined otherwise
+ */
+function extractTier(resource) {
+    if (resource.sku && typeof resource.sku === 'object') {
+        const sku = resource.sku;
+        // Redis pattern: { name: 'Standard', family: 'C', capacity: 2 } — name is the tier
+        if (sku.family && typeof sku.family === 'string' && sku.name && typeof sku.name === 'string') {
+            return sku.name;
+        }
+    }
+    return undefined;
+}
+/**
+ * Extract shard count from an ARM resource (Redis Premium: properties.shardCount)
+ * @param resource - ARM resource object
+ * @returns Shard count if found, undefined otherwise
+ */
+function extractShardCount(resource) {
+    if (resource.properties && typeof resource.properties === 'object') {
+        const properties = resource.properties;
+        if (properties.shardCount != null && typeof properties.shardCount === 'number') {
+            return properties.shardCount;
         }
     }
     return undefined;
@@ -31081,6 +31131,8 @@ function extractSingleResourceMetadata(resource, context) {
     // Pass raw ARM type as kind - the backend handles mapping to short names
     const kind = type;
     const sku = extractSku(resource);
+    const tier = extractTier(resource);
+    const shardCount = extractShardCount(resource);
     const region = extractRegion(resource, context);
     const apiVersion = extractApiVersion(resource);
     const properties = extractProperties(resource);
@@ -31095,26 +31147,42 @@ function extractSingleResourceMetadata(resource, context) {
         kind,
     };
     // Only include optional fields if they exist
-    if (sku !== undefined)
+    if (sku !== undefined) {
         metadata.sku = sku;
-    if (region !== undefined)
+    }
+    if (tier !== undefined) {
+        metadata.tier = tier;
+    }
+    if (shardCount !== undefined) {
+        metadata.shardCount = shardCount;
+    }
+    if (region !== undefined) {
         metadata.region = region;
-    if (apiVersion !== undefined)
+    }
+    if (apiVersion !== undefined) {
         metadata.apiVersion = apiVersion;
-    if (properties !== undefined)
+    }
+    if (properties !== undefined) {
         metadata.properties = properties;
-    if (tags !== undefined)
+    }
+    if (tags !== undefined) {
         metadata.tags = tags;
-    if (osType !== undefined)
+    }
+    if (osType !== undefined) {
         metadata.osType = osType;
-    if (highAvailability !== undefined)
+    }
+    if (highAvailability !== undefined) {
         metadata.highAvailability = highAvailability;
-    if (licenseType !== undefined)
+    }
+    if (licenseType !== undefined) {
         metadata.licenseType = licenseType;
-    if (messagingUnits !== undefined)
+    }
+    if (messagingUnits !== undefined) {
         metadata.messagingUnits = messagingUnits;
-    if (capacityUnits !== undefined)
+    }
+    if (capacityUnits !== undefined) {
         metadata.capacityUnits = capacityUnits;
+    }
     return metadata;
 }
 /**
@@ -31707,20 +31775,33 @@ function getTypeOnlyKey(resource) {
  * @returns True if resources have changes worth reporting
  */
 function hasChanges(base, head) {
-    if (base.sku !== head.sku)
+    // SKU change is always significant (affects cost)
+    if (base.sku !== head.sku) {
         return true;
-    if (base.region !== head.region)
+    }
+    // Region change is significant (affects cost and compliance)
+    if (base.region !== head.region) {
         return true;
-    if (base.osType !== head.osType)
+    }
+    // Shard count change is significant for Redis Premium (affects cost)
+    if (base.shardCount !== head.shardCount) {
         return true;
-    if (base.licenseType !== head.licenseType)
+    }
+    if (base.osType !== head.osType) {
         return true;
-    if (base.highAvailability !== head.highAvailability)
+    }
+    if (base.licenseType !== head.licenseType) {
         return true;
-    if (base.messagingUnits !== head.messagingUnits)
+    }
+    if (base.highAvailability !== head.highAvailability) {
         return true;
-    if (base.capacityUnits !== head.capacityUnits)
+    }
+    if (base.messagingUnits !== head.messagingUnits) {
         return true;
+    }
+    if (base.capacityUnits !== head.capacityUnits) {
+        return true;
+    }
     return false;
 }
 /**
@@ -31785,10 +31866,13 @@ function diffResources(baseResources, headResources) {
                             type: headResource.type,
                             kind: headResource.kind,
                             change: 'modified',
+                            tier: headResource.tier,
                             oldSku: unmatchedBase.sku,
                             newSku: headResource.sku,
                             oldRegion: unmatchedBase.region,
                             newRegion: headResource.region,
+                            oldShardCount: unmatchedBase.shardCount,
+                            newShardCount: headResource.shardCount,
                             properties: headResource.properties,
                             tags: headResource.tags,
                             osType: headResource.osType,
@@ -31817,8 +31901,10 @@ function diffResources(baseResources, headResources) {
                 type: headResource.type,
                 kind: headResource.kind,
                 change: 'added',
+                tier: headResource.tier,
                 newSku: headResource.sku,
                 newRegion: headResource.region,
+                newShardCount: headResource.shardCount,
                 properties: headResource.properties,
                 tags: headResource.tags,
                 osType: headResource.osType,
@@ -31839,10 +31925,13 @@ function diffResources(baseResources, headResources) {
                     type: headResource.type,
                     kind: headResource.kind,
                     change: 'modified',
+                    tier: headResource.tier,
                     oldSku: baseResource.sku,
                     newSku: headResource.sku,
                     oldRegion: baseResource.region,
                     newRegion: headResource.region,
+                    oldShardCount: baseResource.shardCount,
+                    newShardCount: headResource.shardCount,
                     properties: headResource.properties,
                     tags: headResource.tags,
                     osType: headResource.osType,
@@ -31877,8 +31966,10 @@ function diffResources(baseResources, headResources) {
                     type: baseResource.type,
                     kind: baseResource.kind,
                     change: 'removed',
+                    tier: baseResource.tier,
                     oldSku: baseResource.sku,
                     oldRegion: baseResource.region,
+                    oldShardCount: baseResource.shardCount,
                     tags: baseResource.tags,
                     osType: baseResource.osType,
                     licenseType: baseResource.licenseType,
@@ -32183,7 +32274,7 @@ function sanitizeProperties(properties, removedFields) {
  * @returns Sanitized resource
  */
 function sanitizeSingleResource(resource, removedFields, options = {}) {
-    const { change = 'modified', oldSku, oldRegion, oldOsType, oldHighAvailability, oldLicenseType, oldMessagingUnits, oldCapacityUnits, } = options;
+    const { change = 'modified', oldSku, oldRegion, oldShardCount, oldOsType, oldHighAvailability, oldLicenseType, oldMessagingUnits, oldCapacityUnits, } = options;
     const sanitized = {
         kind: resource.kind,
         count: 1, // Each resource counts as 1; aggregation happens at a higher level if needed
@@ -32192,15 +32283,28 @@ function sanitizeSingleResource(resource, removedFields, options = {}) {
     // SKU is safe to include (e.g., "Standard_D2s_v3")
     if (resource.sku)
         sanitized.sku = resource.sku;
+    // Tier is safe to include (e.g., "Standard", "Premium")
+    if (resource.tier) {
+        sanitized.tier = resource.tier;
+    }
+    // Shard count is safe to include (numeric, non-identifying)
+    if (resource.shardCount !== undefined) {
+        sanitized.shardCount = resource.shardCount;
+    }
     // Region is safe to include (e.g., "eastus")
     if (resource.region)
         sanitized.region = resource.region;
-    // Include old SKU/region for modified resources (tracks upgrades/downgrades)
-    if (oldSku !== undefined)
+    // Include old SKU/region/shardCount for modified resources (tracks upgrades/downgrades)
+    if (oldSku !== undefined) {
         sanitized.oldSku = oldSku;
-    if (oldRegion !== undefined)
+    }
+    if (oldRegion !== undefined) {
         sanitized.oldRegion = oldRegion;
-    // Cost-dimension fields — safe enum values, no PII
+    }
+    if (oldShardCount !== undefined) {
+        sanitized.oldShardCount = oldShardCount;
+    }
+    // Cost-dimension fields - safe enum values, no PII
     if (resource.osType !== undefined)
         sanitized.osType = resource.osType;
     if (oldOsType !== undefined)
@@ -32285,11 +32389,12 @@ function sanitizeResourcesWithChanges(resourcesWithChange) {
     log.debug(`Sanitizing ${resourcesWithChange.length} resource(s) with individual change types`);
     const removedFields = new Set();
     const sanitizedResources = [];
-    for (const { resource, change, oldSku, oldRegion, oldOsType, oldHighAvailability, oldLicenseType, oldMessagingUnits, oldCapacityUnits, } of resourcesWithChange) {
+    for (const { resource, change, oldSku, oldRegion, oldShardCount, oldOsType, oldHighAvailability, oldLicenseType, oldMessagingUnits, oldCapacityUnits, } of resourcesWithChange) {
         const sanitized = sanitizeSingleResource(resource, removedFields, {
             change,
             oldSku,
             oldRegion,
+            oldShardCount,
             oldOsType,
             oldHighAvailability,
             oldLicenseType,
@@ -32562,6 +32667,8 @@ async function run() {
                                     type: diff.type,
                                     kind: diff.kind,
                                     sku: diff.newSku,
+                                    tier: diff.tier,
+                                    shardCount: diff.newShardCount,
                                     region: diff.newRegion,
                                     properties: diff.properties,
                                     tags: diff.tags,
@@ -32576,6 +32683,7 @@ async function run() {
                                     change: diff.change === 'unchanged' ? 'modified' : diff.change,
                                     oldSku: diff.oldSku,
                                     oldRegion: diff.oldRegion,
+                                    oldShardCount: diff.oldShardCount,
                                     oldOsType: diff.oldOsType,
                                     oldHighAvailability: diff.oldHighAvailability,
                                     oldLicenseType: diff.oldLicenseType,
@@ -32705,6 +32813,12 @@ async function run() {
         await createOrUpdateComment(octokit, prContext, commentBody, commentMode);
         // Set action outputs
         core.setOutput('resources_detected', resourcesWithChange.length.toString());
+        // Block merge if a blocking policy rule fired (Pro only)
+        if (analysisResult.blocked === true) {
+            core.setOutput('analysis_status', 'blocked');
+            core.setFailed('ResourcePulse: merge blocked by policy violation. See PR comment for details.');
+            return;
+        }
         core.setOutput('analysis_status', 'success');
         log.info('Azure IaC Reviewer completed successfully');
     }

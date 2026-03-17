@@ -6,6 +6,8 @@ export interface ResourceMetadata {
     type: string;
     kind: string;
     sku?: string;
+    tier?: string;
+    shardCount?: number;
     region?: string;
     apiVersion?: string;
     properties?: Record<string, unknown>;

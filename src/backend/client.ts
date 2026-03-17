@@ -14,6 +14,7 @@ export interface AnalysisResult {
   source: 'backend' | 'local';
   markdown: string; // Pre-formatted message ready for PR comment
   error?: string; // Error message when backend fails
+  blocked?: boolean; // true if a blocking policy rule fired (Pro only)
 }
 
 /**
@@ -60,10 +61,13 @@ export interface ApiResource {
   kind: string;
   region?: string;
   sku?: string;
+  tier?: string;
+  shardCount?: number;
   count: number;
   change: string;
   oldSku?: string;
   oldRegion?: string;
+  oldShardCount?: number;
   tags?: Record<string, string>;
   osType?: string;
   oldOsType?: string;
@@ -97,6 +101,7 @@ interface BackendResponse {
   markdown?: string;
   message?: string;
   error?: string;
+  blocked?: boolean;
 }
 
 /**
@@ -224,8 +229,15 @@ function toApiResource(resource: SanitizedResource): ApiResource {
     change: resource.change,
   };
 
+  if (resource.tier !== undefined) {
+    apiResource.tier = resource.tier;
+  }
+  if (resource.shardCount !== undefined) {
+    apiResource.shardCount = resource.shardCount;
+  }
   if (resource.oldSku !== undefined) apiResource.oldSku = resource.oldSku;
   if (resource.oldRegion !== undefined) apiResource.oldRegion = resource.oldRegion;
+  if (resource.oldShardCount !== undefined) apiResource.oldShardCount = resource.oldShardCount;
   if (resource.tags) apiResource.tags = resource.tags;
   if (resource.osType !== undefined) apiResource.osType = resource.osType;
   if (resource.oldOsType !== undefined) apiResource.oldOsType = resource.oldOsType;
@@ -453,6 +465,7 @@ export async function analyzeResources(
         success: true,
         source: 'backend',
         markdown,
+        blocked: backendResult.response.blocked === true,
       };
     }
   }
