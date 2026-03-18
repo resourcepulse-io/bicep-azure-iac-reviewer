@@ -47119,21 +47119,23 @@ async function run() {
                             log.info(`Resource diff for ${compilation.filePath}: +${diffResult.added} added, -${diffResult.removed} removed, ~${diffResult.modified} modified, ${diffResult.unchanged} unchanged`);
                             // Add diffed resources with appropriate change types
                             for (const diff of diffResult.diffs) {
-                                // Create a ResourceMetadata from the diff
+                                // For removed resources there is no "new" state — use old values so the
+                                // API can look up the price (ProcessResources applies a -1 cost sign).
+                                const isRemoved = diff.change === 'removed';
                                 const resource = {
                                     type: diff.type,
                                     kind: diff.kind,
-                                    sku: diff.newSku,
+                                    sku: isRemoved ? diff.oldSku : diff.newSku,
                                     tier: diff.tier,
-                                    shardCount: diff.newShardCount,
-                                    region: diff.newRegion,
+                                    shardCount: isRemoved ? diff.oldShardCount : diff.newShardCount,
+                                    region: isRemoved ? diff.oldRegion : diff.newRegion,
                                     properties: diff.properties,
                                     tags: diff.tags,
-                                    osType: diff.osType,
-                                    highAvailability: diff.highAvailability,
-                                    licenseType: diff.licenseType,
-                                    messagingUnits: diff.messagingUnits,
-                                    capacityUnits: diff.capacityUnits,
+                                    osType: isRemoved ? diff.oldOsType : diff.osType,
+                                    highAvailability: isRemoved ? diff.oldHighAvailability : diff.highAvailability,
+                                    licenseType: isRemoved ? diff.oldLicenseType : diff.licenseType,
+                                    messagingUnits: isRemoved ? diff.oldMessagingUnits : diff.messagingUnits,
+                                    capacityUnits: isRemoved ? diff.oldCapacityUnits : diff.capacityUnits,
                                 };
                                 resourcesWithChange.push({
                                     resource,
