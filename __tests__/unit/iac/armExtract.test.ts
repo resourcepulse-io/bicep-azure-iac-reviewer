@@ -653,6 +653,66 @@ describe('ARM Extract Module', () => {
       expect(result.unresolvedLocations).toEqual(["parameters('location')"]);
     });
 
+    it('should extract resources from nested Bicep module deployment', () => {
+      // Simulates the compiled ARM output of a main.bicep that references a module.
+      // The module compiles to a Microsoft.Resources/deployments resource with the
+      // actual inner resources inside properties.template.resources.
+      const armJson = JSON.stringify({
+        $schema: 'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        parameters: {
+          location: { type: 'string' },
+        },
+        resources: [
+          {
+            type: 'Microsoft.Resources/deployments',
+            name: 'database',
+            properties: {
+              parameters: {
+                location: { value: "[parameters('location')]" },
+                env: { value: "[parameters('env')]" },
+              },
+              template: {
+                parameters: {
+                  location: { type: 'string' },
+                  env: { type: 'string' },
+                  sqlAdminLogin: { type: 'string', defaultValue: 'sqladmin' },
+                },
+                resources: [
+                  {
+                    type: 'Microsoft.Sql/servers',
+                    apiVersion: '2023-05-01-preview',
+                    location: "[parameters('location')]",
+                    name: 'my-sql-server',
+                  },
+                  {
+                    type: 'Microsoft.Sql/servers/databases',
+                    apiVersion: '2023-05-01-preview',
+                    location: "[parameters('location')]",
+                    name: 'my-sql-server/my-db',
+                    sku: { name: 'GP_Gen5_4', tier: 'GeneralPurpose' },
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson, {
+        paramValues: { location: 'westeurope', env: 'dev' },
+        enableRegionResolution: true,
+      });
+
+      expect(result.resourceCount).toBe(2);
+      expect(result.resources[0].kind).toBe('Microsoft.Sql/servers');
+      expect(result.resources[0].region).toBe('westeurope');
+      expect(result.resources[1].kind).toBe('Microsoft.Sql/servers/databases');
+      expect(result.resources[1].region).toBe('westeurope');
+      expect(result.resources[1].sku).toBe('GP_Gen5_4');
+      expect(result.resolvedRegions).toEqual(['westeurope']);
+    });
+
     it('should skip region extraction when disabled', () => {
       const armJson = JSON.stringify({
         $schema:
