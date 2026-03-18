@@ -45554,6 +45554,57 @@ function extractSingleResourceMetadata(resource, context) {
     return metadata;
 }
 /**
+ * Build a region-resolution context for an inner (module) template by resolving
+ * the deployment's properties.parameters against the outer context's paramValues.
+ * This ensures that inner resources whose location references inner parameters
+ * (e.g. "[parameters('location')]") resolve correctly even when the outer template
+ * uses different parameter names.
+ */
+function buildInnerContext(props, template, outerContext) {
+    if (!outerContext.paramValues) {
+        return outerContext;
+    }
+    const innerParams = {};
+    // Collect default values from the inner template's parameters section
+    const templateParams = template?.parameters;
+    if (templateParams) {
+        for (const [name, def] of Object.entries(templateParams)) {
+            const paramDef = def;
+            const defaultValue = paramDef?.defaultValue;
+            if (typeof defaultValue === 'string' || typeof defaultValue === 'number' || typeof defaultValue === 'boolean') {
+                innerParams[name] = defaultValue;
+            }
+        }
+    }
+    // Override with values explicitly passed to the inner template, resolving
+    // any ARM expressions against the outer context's paramValues.
+    const passedParams = props?.parameters;
+    if (passedParams) {
+        for (const [name, entry] of Object.entries(passedParams)) {
+            const paramEntry = entry;
+            const rawValue = paramEntry?.value;
+            if (typeof rawValue === 'string') {
+                if (isArmExpression(rawValue)) {
+                    const resolved = resolveLocationExpression(rawValue, outerContext.paramValues);
+                    if (resolved !== undefined) {
+                        innerParams[name] = resolved;
+                    }
+                }
+                else {
+                    innerParams[name] = rawValue;
+                }
+            }
+            else if (typeof rawValue === 'number' || typeof rawValue === 'boolean') {
+                innerParams[name] = rawValue;
+            }
+        }
+    }
+    return {
+        ...outerContext,
+        paramValues: { ...outerContext.paramValues, ...innerParams },
+    };
+}
+/**
  * Recursively extract resources from ARM template, including nested resources
  * @param resources - Array of ARM resources
  * @param accumulated - Accumulator for recursively collected resources
@@ -45582,7 +45633,12 @@ function extractResourcesRecursive(resources, context, accumulated = []) {
             const props = resourceObj.properties;
             const template = props?.template;
             if (Array.isArray(template?.resources)) {
-                extractResourcesRecursive(template.resources, context, accumulated);
+                // Build an inner param context by resolving the deployment's passed-in parameter
+                // values against the outer context. This handles cases where the inner template
+                // uses different parameter names than the outer template (e.g. outer has 'region',
+                // inner expects 'location').
+                const innerContext = buildInnerContext(props, template, context);
+                extractResourcesRecursive(template.resources, innerContext, accumulated);
             }
             continue;
         }
