@@ -12,4 +12,7 @@ module.exports = {
   coverageReporters: ['text', 'lcov', 'html'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   verbose: true,
+  moduleNameMapper: {
+    '^@actions/core$': '<rootDir>/__mocks__/@actions/core.ts',
+  },
 };
