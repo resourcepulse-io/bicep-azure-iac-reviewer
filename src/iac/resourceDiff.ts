@@ -141,17 +141,25 @@ export function diffResources(
   let modified = 0;
   let unchanged = 0;
 
-  // Create maps for both detailed and type-only matching
-  const baseMap = new Map<string, ResourceMetadata>();
+  // Create maps for both detailed and type-only matching.
+  // baseMap stores arrays so multiple resources with the same composite key
+  // (e.g. two VMs with the same type+SKU+region) are all preserved.
+  const baseMap = new Map<string, ResourceMetadata[]>();
   const baseTypeMap = new Map<string, ResourceMetadata[]>();
 
   for (const resource of baseResources) {
-    baseMap.set(getResourceKey(resource), resource);
-
-    const typeKey = getTypeOnlyKey(resource);
-    const existing = baseTypeMap.get(typeKey);
+    const key = getResourceKey(resource);
+    const existing = baseMap.get(key);
     if (existing) {
       existing.push(resource);
+    } else {
+      baseMap.set(key, [resource]);
+    }
+
+    const typeKey = getTypeOnlyKey(resource);
+    const existingType = baseTypeMap.get(typeKey);
+    if (existingType) {
+      existingType.push(resource);
     } else {
       baseTypeMap.set(typeKey, [resource]);
     }
@@ -172,12 +180,15 @@ export function diffResources(
     }
   }
 
-  // Track which base resources have been matched
-  const matchedBaseKeys = new Set<string>();
+  // Track matched base resources by object reference so that two resources
+  // with the same composite key (e.g. two identical VMs) are tracked independently.
+  const matchedBaseResources = new Set<ResourceMetadata>();
 
   // Find added and modified resources (iterate over head)
   for (const [key, headResource] of headMap) {
-    const baseResource = baseMap.get(key);
+    const baseArr = baseMap.get(key);
+    // First unmatched base resource with this exact key
+    const baseResource = baseArr?.find(b => !matchedBaseResources.has(b));
 
     if (!baseResource) {
       // Try to find by type only (handles SKU/region changes)
@@ -187,10 +198,10 @@ export function diffResources(
       if (baseByType && baseByType.length > 0) {
         // Found a resource of same type - check if it's a modification
         // Find the first unmatched base resource of this type
-        const unmatchedBase = baseByType.find(b => !matchedBaseKeys.has(getResourceKey(b)));
+        const unmatchedBase = baseByType.find(b => !matchedBaseResources.has(b));
 
         if (unmatchedBase) {
-          matchedBaseKeys.add(getResourceKey(unmatchedBase));
+          matchedBaseResources.add(unmatchedBase);
 
           if (hasChanges(unmatchedBase, headResource)) {
             // Resource was modified (SKU or region changed)
@@ -249,7 +260,7 @@ export function diffResources(
       log.debug(`Added: ${headResource.type} (${headResource.sku || 'no sku'})`);
     } else {
       // Exact key match found
-      matchedBaseKeys.add(key);
+      matchedBaseResources.add(baseResource);
 
       if (hasChanges(baseResource, headResource)) {
         // Resource exists in both but has changes = MODIFIED
@@ -287,8 +298,8 @@ export function diffResources(
   }
 
   // Find removed resources (in base but not in head)
-  for (const [key, baseResource] of baseMap) {
-    if (!matchedBaseKeys.has(key)) {
+  for (const baseResource of baseResources) {
+    if (!matchedBaseResources.has(baseResource)) {
       // Check if there's any head resource of the same type
       const typeKey = getTypeOnlyKey(baseResource);
       const headByType = headTypeMap.get(typeKey);

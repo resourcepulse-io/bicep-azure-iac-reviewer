@@ -493,6 +493,18 @@ function extractResourcesRecursive(
       continue;
     }
 
+    // Bicep modules compile to Microsoft.Resources/deployments with the actual resources
+    // nested inside properties.template.resources. Recurse into those instead of
+    // treating the deployment itself as a resource.
+    if (resourceType === 'microsoft.resources/deployments') {
+      const props = resourceObj.properties as Record<string, unknown> | undefined;
+      const template = props?.template as Record<string, unknown> | undefined;
+      if (Array.isArray(template?.resources)) {
+        extractResourcesRecursive(template.resources as unknown[], context, accumulated);
+      }
+      continue;
+    }
+
     // Extract metadata from current resource
     const metadata = extractSingleResourceMetadata(resourceObj, context);
     accumulated.push(metadata);

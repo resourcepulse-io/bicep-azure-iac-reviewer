@@ -45575,6 +45575,17 @@ function extractResourcesRecursive(resources, context, accumulated = []) {
         if (resourceType === 'microsoft.web/sites') {
             continue;
         }
+        // Bicep modules compile to Microsoft.Resources/deployments with the actual resources
+        // nested inside properties.template.resources. Recurse into those instead of
+        // treating the deployment itself as a resource.
+        if (resourceType === 'microsoft.resources/deployments') {
+            const props = resourceObj.properties;
+            const template = props?.template;
+            if (Array.isArray(template?.resources)) {
+                extractResourcesRecursive(template.resources, context, accumulated);
+            }
+            continue;
+        }
         // Extract metadata from current resource
         const metadata = extractSingleResourceMetadata(resourceObj, context);
         accumulated.push(metadata);
@@ -46196,15 +46207,24 @@ function diffResources(baseResources, headResources) {
     let removed = 0;
     let modified = 0;
     let unchanged = 0;
-    // Create maps for both detailed and type-only matching
+    // Create maps for both detailed and type-only matching.
+    // baseMap stores arrays so multiple resources with the same composite key
+    // (e.g. two VMs with the same type+SKU+region) are all preserved.
     const baseMap = new Map();
     const baseTypeMap = new Map();
     for (const resource of baseResources) {
-        baseMap.set(getResourceKey(resource), resource);
-        const typeKey = getTypeOnlyKey(resource);
-        const existing = baseTypeMap.get(typeKey);
+        const key = getResourceKey(resource);
+        const existing = baseMap.get(key);
         if (existing) {
             existing.push(resource);
+        }
+        else {
+            baseMap.set(key, [resource]);
+        }
+        const typeKey = getTypeOnlyKey(resource);
+        const existingType = baseTypeMap.get(typeKey);
+        if (existingType) {
+            existingType.push(resource);
         }
         else {
             baseTypeMap.set(typeKey, [resource]);
@@ -46223,11 +46243,14 @@ function diffResources(baseResources, headResources) {
             headTypeMap.set(typeKey, [resource]);
         }
     }
-    // Track which base resources have been matched
-    const matchedBaseKeys = new Set();
+    // Track matched base resources by object reference so that two resources
+    // with the same composite key (e.g. two identical VMs) are tracked independently.
+    const matchedBaseResources = new Set();
     // Find added and modified resources (iterate over head)
     for (const [key, headResource] of headMap) {
-        const baseResource = baseMap.get(key);
+        const baseArr = baseMap.get(key);
+        // First unmatched base resource with this exact key
+        const baseResource = baseArr?.find(b => !matchedBaseResources.has(b));
         if (!baseResource) {
             // Try to find by type only (handles SKU/region changes)
             const typeKey = getTypeOnlyKey(headResource);
@@ -46235,9 +46258,9 @@ function diffResources(baseResources, headResources) {
             if (baseByType && baseByType.length > 0) {
                 // Found a resource of same type - check if it's a modification
                 // Find the first unmatched base resource of this type
-                const unmatchedBase = baseByType.find(b => !matchedBaseKeys.has(getResourceKey(b)));
+                const unmatchedBase = baseByType.find(b => !matchedBaseResources.has(b));
                 if (unmatchedBase) {
-                    matchedBaseKeys.add(getResourceKey(unmatchedBase));
+                    matchedBaseResources.add(unmatchedBase);
                     if (hasChanges(unmatchedBase, headResource)) {
                         // Resource was modified (SKU or region changed)
                         diffs.push({
@@ -46296,7 +46319,7 @@ function diffResources(baseResources, headResources) {
         }
         else {
             // Exact key match found
-            matchedBaseKeys.add(key);
+            matchedBaseResources.add(baseResource);
             if (hasChanges(baseResource, headResource)) {
                 // Resource exists in both but has changes = MODIFIED
                 diffs.push({
@@ -46333,8 +46356,8 @@ function diffResources(baseResources, headResources) {
         }
     }
     // Find removed resources (in base but not in head)
-    for (const [key, baseResource] of baseMap) {
-        if (!matchedBaseKeys.has(key)) {
+    for (const baseResource of baseResources) {
+        if (!matchedBaseResources.has(baseResource)) {
             // Check if there's any head resource of the same type
             const typeKey = getTypeOnlyKey(baseResource);
             const headByType = headTypeMap.get(typeKey);
