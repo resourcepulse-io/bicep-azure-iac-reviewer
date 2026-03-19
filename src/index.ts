@@ -177,7 +177,7 @@ async function run(): Promise<void> {
           if (baseContent) {
             // Fetch base-branch modules so module references in old file versions
             // resolve against base modules, not head-branch modules in the workspace.
-            const repoRelativeModulesDir = `${path.dirname(repoRelativePath).replace(/\/g, '/')}/modules`;
+            const repoRelativeModulesDir = `${path.dirname(repoRelativePath).replace(/\\/g, '/')}/modules`;
             const baseModuleFiles = await getBaseModuleFiles(octokit, prContext, repoRelativeModulesDir);
 
             // Compile base version

@@ -35,7 +35,7 @@ export declare function compileBicepFiles(bicepCliPath: string, filePaths: strin
  * @param originalFilePath - Original file path (used for naming and logging)
  * @returns Compilation result with ARM template or error
  */
-export declare function compileBicepContent(bicepCliPath: string, content: string, originalFilePath: string): Promise<BicepCompilationResult>;
+export declare function compileBicepContent(bicepCliPath: string, content: string, originalFilePath: string, moduleFiles?: Record<string, string>): Promise<BicepCompilationResult>;
 /**
  * Format compilation errors for PR comment
  * @param results - Array of compilation results

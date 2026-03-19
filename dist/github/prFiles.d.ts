@@ -67,4 +67,15 @@ export declare function listBicepFilesWithStatus(octokit: Octokit, context: PRCo
  * @returns File content as string, or null if file doesn't exist in base branch
  */
 export declare function getBaseFileContent(octokit: Octokit, context: PRContext, filename: string): Promise<string | null>;
+/**
+ * Fetch all .bicep files from a directory in the base branch.
+ * Used to provide correct module context when compiling base branch content,
+ * so that module references in old file versions resolve against base modules
+ * rather than the head-branch modules in the workspace.
+ * @param octokit - Authenticated Octokit instance
+ * @param context - PR context with owner, repo, and base branch
+ * @param repoRelativeDir - Repo-relative path to directory (e.g., "infra/modules")
+ * @returns Map of paths relative to the parent dir (e.g., "modules/foo.bicep") to content
+ */
+export declare function getBaseModuleFiles(octokit: Octokit, context: PRContext, repoRelativeDir: string): Promise<Record<string, string>>;
 //# sourceMappingURL=prFiles.d.ts.map

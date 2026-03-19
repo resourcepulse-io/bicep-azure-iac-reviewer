@@ -44988,6 +44988,7 @@ exports.filterFilesByExtensionWithStatus = filterFilesByExtensionWithStatus;
 exports.listBicepFiles = listBicepFiles;
 exports.listBicepFilesWithStatus = listBicepFilesWithStatus;
 exports.getBaseFileContent = getBaseFileContent;
+exports.getBaseModuleFiles = getBaseModuleFiles;
 const log = __importStar(__nccwpck_require__(6555));
 /**
  * Map GitHub file status to API change type
@@ -45142,6 +45143,49 @@ async function getBaseFileContent(octokit, context, filename) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         log.debug(`Could not fetch base content for ${filename}: ${errorMessage}`);
         return null;
+    }
+}
+/**
+ * Fetch all .bicep files from a directory in the base branch.
+ * Used to provide correct module context when compiling base branch content,
+ * so that module references in old file versions resolve against base modules
+ * rather than the head-branch modules in the workspace.
+ * @param octokit - Authenticated Octokit instance
+ * @param context - PR context with owner, repo, and base branch
+ * @param repoRelativeDir - Repo-relative path to directory (e.g., "infra/modules")
+ * @returns Map of paths relative to the parent dir (e.g., "modules/foo.bicep") to content
+ */
+async function getBaseModuleFiles(octokit, context, repoRelativeDir) {
+    try {
+        log.debug(`Fetching base branch module files from ${repoRelativeDir}`);
+        const response = await octokit.rest.repos.getContent({
+            owner: context.owner,
+            repo: context.repo,
+            path: repoRelativeDir,
+            ref: context.baseBranch,
+        });
+        if (!Array.isArray(response.data)) {
+            log.debug(`${repoRelativeDir} is not a directory in base branch`);
+            return {};
+        }
+        const moduleFiles = {};
+        const dirName = repoRelativeDir.split('/').pop() ?? 'modules';
+        const bicepFiles = response.data.filter((f) => f.type === 'file' && f.name.toLowerCase().endsWith('.bicep'));
+        for (const file of bicepFiles) {
+            const content = await getBaseFileContent(octokit, context, file.path);
+            if (content !== null) {
+                moduleFiles[`${dirName}/${file.name}`] = content;
+                log.debug(`Fetched base module: ${dirName}/${file.name}`);
+            }
+        }
+        log.debug(`Fetched ${Object.keys(moduleFiles).length} base module file(s) from ${repoRelativeDir}`);
+        return moduleFiles;
+    }
+    catch (error) {
+        // Directory doesn't exist in base branch or other error — return empty (no modules)
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        log.debug(`Could not fetch base modules from ${repoRelativeDir}: ${errorMessage}`);
+        return {};
     }
 }
 
@@ -45966,7 +46010,7 @@ async function compileBicepFiles(bicepCliPath, filePaths) {
  * @param originalFilePath - Original file path (used for naming and logging)
  * @returns Compilation result with ARM template or error
  */
-async function compileBicepContent(bicepCliPath, content, originalFilePath) {
+async function compileBicepContent(bicepCliPath, content, originalFilePath, moduleFiles) {
     const runnerTemp = process.env.RUNNER_TEMP;
     if (!runnerTemp) {
         return {
@@ -45985,14 +46029,27 @@ async function compileBicepContent(bicepCliPath, content, originalFilePath) {
         // Write content to temp file inside the temp dir
         fs.writeFileSync(tempFilePath, content, 'utf-8');
         log.debug(`Wrote base content to temp file: ${tempFilePath}`);
-        // Copy modules directory from alongside the original file (if it exists)
-        const originalDir = path.dirname(originalFilePath);
-        const modulesDir = path.join(originalDir, 'modules');
-        if (fs.existsSync(modulesDir)) {
-            const tempModulesDir = path.join(tempDir, 'modules');
-            fs.cpSync(modulesDir, tempModulesDir, { recursive: true });
-            log.debug(`Copied modules from ${modulesDir} to ${tempModulesDir}`);
+        // Write module files — use provided base-branch modules when available,
+        // otherwise fall back to copying from the workspace (e.g. for non-PR compilation).
+        if (moduleFiles && Object.keys(moduleFiles).length > 0) {
+            for (const [relativePath, moduleContent] of Object.entries(moduleFiles)) {
+                const destPath = path.join(tempDir, relativePath);
+                fs.mkdirSync(path.dirname(destPath), { recursive: true });
+                fs.writeFileSync(destPath, moduleContent, 'utf-8');
+            }
+            log.debug(`Wrote ${Object.keys(moduleFiles).length} base module file(s) to temp dir`);
         }
+        else if (moduleFiles === undefined) {
+            // No moduleFiles argument provided — fall back to workspace copy
+            const originalDir = path.dirname(originalFilePath);
+            const modulesDir = path.join(originalDir, 'modules');
+            if (fs.existsSync(modulesDir)) {
+                const tempModulesDir = path.join(tempDir, 'modules');
+                fs.cpSync(modulesDir, tempModulesDir, { recursive: true });
+                log.debug(`Copied modules from ${modulesDir} to ${tempModulesDir}`);
+            }
+        }
+        // If moduleFiles === {} (empty, explicitly passed), no modules are written — correct for files with no module refs
         // Compile the temp file
         const result = await compileBicepFile(bicepCliPath, tempFilePath);
         // Return result with original file path for clearer logging
@@ -47105,8 +47162,12 @@ async function run() {
                     const repoRelativePath = path.relative(workspaceRoot, compilation.filePath).replace(/\\/g, '/');
                     const baseContent = await (0, prFiles_1.getBaseFileContent)(octokit, prContext, repoRelativePath);
                     if (baseContent) {
+                        // Fetch base-branch modules so module references in old file versions
+                        // resolve against base modules, not head-branch modules in the workspace.
+                        const repoRelativeModulesDir = `${path.dirname(repoRelativePath).replace(/\\/g, '/')}/modules`;
+                        const baseModuleFiles = await (0, prFiles_1.getBaseModuleFiles)(octokit, prContext, repoRelativeModulesDir);
                         // Compile base version
-                        const baseCompilation = await compileBicepContent(bicepCliPath, baseContent, compilation.filePath);
+                        const baseCompilation = await compileBicepContent(bicepCliPath, baseContent, compilation.filePath, baseModuleFiles);
                         if (baseCompilation.success && baseCompilation.armTemplate) {
                             // Extract resources from base
                             const baseArmJson = JSON.stringify(baseCompilation.armTemplate);
