@@ -276,7 +276,8 @@ export async function compileBicepFiles(
 export async function compileBicepContent(
   bicepCliPath: string,
   content: string,
-  originalFilePath: string
+  originalFilePath: string,
+  moduleFiles?: Record<string, string>
 ): Promise<BicepCompilationResult> {
   const runnerTemp = process.env.RUNNER_TEMP;
 
@@ -301,14 +302,26 @@ export async function compileBicepContent(
     fs.writeFileSync(tempFilePath, content, 'utf-8');
     log.debug(`Wrote base content to temp file: ${tempFilePath}`);
 
-    // Copy modules directory from alongside the original file (if it exists)
-    const originalDir = path.dirname(originalFilePath);
-    const modulesDir = path.join(originalDir, 'modules');
-    if (fs.existsSync(modulesDir)) {
-      const tempModulesDir = path.join(tempDir, 'modules');
-      fs.cpSync(modulesDir, tempModulesDir, { recursive: true });
-      log.debug(`Copied modules from ${modulesDir} to ${tempModulesDir}`);
+    // Write module files — use provided base-branch modules when available,
+    // otherwise fall back to copying from the workspace (e.g. for non-PR compilation).
+    if (moduleFiles && Object.keys(moduleFiles).length > 0) {
+      for (const [relativePath, moduleContent] of Object.entries(moduleFiles)) {
+        const destPath = path.join(tempDir, relativePath);
+        fs.mkdirSync(path.dirname(destPath), { recursive: true });
+        fs.writeFileSync(destPath, moduleContent, 'utf-8');
+      }
+      log.debug(`Wrote ${Object.keys(moduleFiles).length} base module file(s) to temp dir`);
+    } else if (moduleFiles === undefined) {
+      // No moduleFiles argument provided — fall back to workspace copy
+      const originalDir = path.dirname(originalFilePath);
+      const modulesDir = path.join(originalDir, 'modules');
+      if (fs.existsSync(modulesDir)) {
+        const tempModulesDir = path.join(tempDir, 'modules');
+        fs.cpSync(modulesDir, tempModulesDir, { recursive: true });
+        log.debug(`Copied modules from ${modulesDir} to ${tempModulesDir}`);
+      }
     }
+    // If moduleFiles === {} (empty, explicitly passed), no modules are written — correct for files with no module refs
 
     // Compile the temp file
     const result = await compileBicepFile(bicepCliPath, tempFilePath);
