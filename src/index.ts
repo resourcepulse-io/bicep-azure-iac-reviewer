@@ -11,6 +11,42 @@ import type { BackendCallContext } from './backend/client';
 import type { ResourceWithChange } from './iac/sanitize';
 
 /**
+ * Filter out module files when a parent .bicep file is also being compiled.
+ * Bicep compiles recursively, so the parent's ARM output already contains all
+ * module resources. Compiling both parent and module produces duplicate entries.
+ * Only skip a module if a root-level file in the same tree is also changing —
+ * if only the module changed (no parent in the PR), compile it directly.
+ * @param files - List of changed .bicep files with status
+ * @returns Filtered list with redundant module files removed
+ */
+function deduplicateModuleFiles(files: BicepFileWithStatus[]): BicepFileWithStatus[] {
+  // Collect the directory of each non-module .bicep file (root-level files)
+  const rootFileDirs = new Set<string>(
+    files
+      .filter(f => !f.filename.split('/').includes('modules'))
+      .map(f => {
+        const lastSlash = f.filename.lastIndexOf('/');
+        return lastSlash >= 0 ? f.filename.substring(0, lastSlash) : '';
+      })
+  );
+
+  return files.filter(f => {
+    const parts = f.filename.split('/');
+    const modulesIdx = parts.indexOf('modules');
+    if (modulesIdx === -1) return true; // not inside a modules/ dir — always include
+
+    // Parent dir is everything before the 'modules/' segment
+    const parentDir = parts.slice(0, modulesIdx).join('/');
+    if (rootFileDirs.has(parentDir)) {
+      // A root file in the same tree is also being compiled — skip this module
+      // (the root compilation will resolve it)
+      return false;
+    }
+    return true; // no parent being compiled — include so the change is captured
+  });
+}
+
+/**
  * Main entry point for the Azure IaC Reviewer GitHub Action
  */
 async function run(): Promise<void> {
@@ -33,19 +69,26 @@ async function run(): Promise<void> {
       return;
     }
 
-    log.info(`Found ${bicepFilesWithStatus.length} .bicep file(s) to analyze`);
+    // Remove module files that will be covered by a parent compilation to avoid duplicates
+    const dedupedBicepFiles = deduplicateModuleFiles(bicepFilesWithStatus);
+    if (dedupedBicepFiles.length < bicepFilesWithStatus.length) {
+      const skipped = bicepFilesWithStatus.length - dedupedBicepFiles.length;
+      log.info(`Skipped ${skipped} module file(s) — covered by parent compilation`);
+    }
+
+    log.info(`Found ${dedupedBicepFiles.length} .bicep file(s) to analyze`);
 
     // Resolve workspace root for absolute path resolution
     const workspaceRoot = process.env.GITHUB_WORKSPACE || process.cwd();
 
     // Resolve workspace-relative paths from GitHub API to absolute paths
-    const bicepFiles = bicepFilesWithStatus.map((f) =>
+    const bicepFiles = dedupedBicepFiles.map((f) =>
       path.resolve(workspaceRoot, f.filename)
     );
 
     // Create a map of absolute path to change type for later use
     const fileChangeMap = new Map<string, BicepFileWithStatus['change']>();
-    for (const file of bicepFilesWithStatus) {
+    for (const file of dedupedBicepFiles) {
       fileChangeMap.set(path.resolve(workspaceRoot, file.filename), file.change);
     }
 
