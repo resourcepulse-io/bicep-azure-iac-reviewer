@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as log from './utils/log';
 import { initializeGitHub } from './github/context';
-import { listBicepFilesWithStatus, BicepFileWithStatus, getBaseFileContent } from './github/prFiles';
+import { listBicepFilesWithStatus, BicepFileWithStatus, getBaseFileContent, getBaseModuleFiles } from './github/prFiles';
 import { parseBicepParamFile } from './iac/bicepParams';
 import type { BicepParamValue } from './iac/bicepParams';
 import type { ResourceMetadata } from './iac/armExtract';
@@ -175,11 +175,17 @@ async function run(): Promise<void> {
           const baseContent = await getBaseFileContent(octokit, prContext, repoRelativePath);
 
           if (baseContent) {
+            // Fetch base-branch modules so module references in old file versions
+            // resolve against base modules, not head-branch modules in the workspace.
+            const repoRelativeModulesDir = `${path.dirname(repoRelativePath).replace(/\/g, '/')}/modules`;
+            const baseModuleFiles = await getBaseModuleFiles(octokit, prContext, repoRelativeModulesDir);
+
             // Compile base version
             const baseCompilation = await compileBicepContent(
               bicepCliPath,
               baseContent,
-              compilation.filePath
+              compilation.filePath,
+              baseModuleFiles
             );
 
             if (baseCompilation.success && baseCompilation.armTemplate) {
