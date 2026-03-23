@@ -265,6 +265,7 @@ async function run(): Promise<void> {
                   licenseType: isRemoved ? diff.oldLicenseType : diff.licenseType,
                   messagingUnits: isRemoved ? diff.oldMessagingUnits : diff.messagingUnits,
                   capacityUnits: isRemoved ? diff.oldCapacityUnits : diff.capacityUnits,
+                  instanceCount: isRemoved ? diff.instanceCount : diff.instanceCount,
                 };
 
                 resourcesWithChange.push({

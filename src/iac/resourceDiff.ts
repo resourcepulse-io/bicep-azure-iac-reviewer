@@ -30,10 +30,12 @@ export interface ResourceDiff {
   oldLicenseType?: string;
   messagingUnits?: number;
   capacityUnits?: number;
+  instanceCount?: number;
   // Previous state for mutable cost dimensions (modified resources only)
   oldHighAvailability?: string;
   oldMessagingUnits?: number;
   oldCapacityUnits?: number;
+  oldInstanceCount?: number;
 }
 
 /**
@@ -117,6 +119,9 @@ function hasChanges(base: ResourceMetadata, head: ResourceMetadata): boolean {
     return true;
   }
   if (base.capacityUnits !== head.capacityUnits) {
+    return true;
+  }
+  if (base.instanceCount !== head.instanceCount) {
     return true;
   }
   return false;
@@ -228,6 +233,8 @@ export function diffResources(
               oldMessagingUnits: unmatchedBase.messagingUnits,
               capacityUnits: headResource.capacityUnits,
               oldCapacityUnits: unmatchedBase.capacityUnits,
+              instanceCount: headResource.instanceCount,
+              oldInstanceCount: unmatchedBase.instanceCount,
             });
             modified++;
             log.debug(`Modified: ${headResource.type} (${unmatchedBase.sku} -> ${headResource.sku})`);
@@ -255,6 +262,7 @@ export function diffResources(
         highAvailability: headResource.highAvailability,
         messagingUnits: headResource.messagingUnits,
         capacityUnits: headResource.capacityUnits,
+        instanceCount: headResource.instanceCount,
       });
       added++;
       log.debug(`Added: ${headResource.type} (${headResource.sku || 'no sku'})`);
@@ -287,6 +295,8 @@ export function diffResources(
           oldMessagingUnits: baseResource.messagingUnits,
           capacityUnits: headResource.capacityUnits,
           oldCapacityUnits: baseResource.capacityUnits,
+          instanceCount: headResource.instanceCount,
+          oldInstanceCount: baseResource.instanceCount,
         });
         modified++;
         log.debug(`Modified: ${headResource.type} (${baseResource.sku} -> ${headResource.sku})`);
@@ -320,6 +330,7 @@ export function diffResources(
           highAvailability: baseResource.highAvailability,
           messagingUnits: baseResource.messagingUnits,
           capacityUnits: baseResource.capacityUnits,
+          instanceCount: baseResource.instanceCount,
         });
         removed++;
         log.debug(`Removed: ${baseResource.type} (${baseResource.sku || 'no sku'})`);

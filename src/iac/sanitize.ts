@@ -356,7 +356,7 @@ function sanitizeSingleResource(
 
   const sanitized: SanitizedResource = {
     kind: resource.kind,
-    count: 1, // Each resource counts as 1; aggregation happens at a higher level if needed
+    count: resource.instanceCount ?? 1,
     change,
   };
 

@@ -20,6 +20,7 @@ export interface ResourceMetadata {
   licenseType?: string;      // "LicenseIncluded" | "BasePrice"  (SQL Database)
   messagingUnits?: number;   // sku.capacity  (Service Bus Premium)
   capacityUnits?: number;    // sku.capacity  (APIM)
+  instanceCount?: number;    // sku.capacity (VMSS) | agentPoolProfiles[0].count (AKS)
 }
 
 /**
@@ -373,6 +374,39 @@ function extractCapacityUnits(resource: Record<string, unknown>, type: string): 
 }
 
 /**
+ * Extract instance count for VMSS (sku.capacity) and AKS (agentPoolProfiles[0].count).
+ * Returns undefined for all other resource types.
+ */
+function extractInstanceCount(resource: Record<string, unknown>, type: string): number | undefined {
+  const lowerType = type.toLowerCase();
+
+  // VMSS: sku.capacity is the number of instances
+  if (lowerType === 'microsoft.compute/virtualmachinescalesets') {
+    const sku = resource.sku as Record<string, unknown> | undefined;
+    const capacity = sku?.capacity;
+    if (typeof capacity === 'number' && capacity > 0) {
+      return capacity;
+    }
+    return undefined;
+  }
+
+  // AKS: sum node counts across all agent pool profiles
+  if (lowerType === 'microsoft.containerservice/managedclusters') {
+    const props = resource.properties as Record<string, unknown> | undefined;
+    if (Array.isArray(props?.agentPoolProfiles) && props.agentPoolProfiles.length > 0) {
+      const total = (props.agentPoolProfiles as Array<Record<string, unknown>>).reduce(
+        (sum, pool) => sum + (typeof pool.count === 'number' && pool.count > 0 ? pool.count : 1),
+        0
+      );
+      return total > 0 ? total : undefined;
+    }
+    return undefined;
+  }
+
+  return undefined;
+}
+
+/**
  * Extract relevant properties from an ARM resource
  * Only includes non-sensitive properties that may be useful for analysis
  * @param resource - ARM resource object
@@ -416,6 +450,7 @@ function extractSingleResourceMetadata(
   const licenseType = extractLicenseType(resource, type);
   const messagingUnits = extractMessagingUnits(resource, type);
   const capacityUnits = extractCapacityUnits(resource, type);
+  const instanceCount = extractInstanceCount(resource, type);
 
   const metadata: ResourceMetadata = {
     type,
@@ -458,6 +493,9 @@ function extractSingleResourceMetadata(
   }
   if (capacityUnits !== undefined) {
     metadata.capacityUnits = capacityUnits;
+  }
+  if (instanceCount !== undefined) {
+    metadata.instanceCount = instanceCount;
   }
 
   return metadata;

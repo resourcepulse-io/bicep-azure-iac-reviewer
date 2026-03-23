@@ -45518,6 +45518,32 @@ function extractCapacityUnits(resource, type) {
     return undefined;
 }
 /**
+ * Extract instance count for VMSS (sku.capacity) and AKS (agentPoolProfiles[0].count).
+ * Returns undefined for all other resource types.
+ */
+function extractInstanceCount(resource, type) {
+    const lowerType = type.toLowerCase();
+    // VMSS: sku.capacity is the number of instances
+    if (lowerType === 'microsoft.compute/virtualmachinescalesets') {
+        const sku = resource.sku;
+        const capacity = sku?.capacity;
+        if (typeof capacity === 'number' && capacity > 0) {
+            return capacity;
+        }
+        return undefined;
+    }
+    // AKS: sum node counts across all agent pool profiles
+    if (lowerType === 'microsoft.containerservice/managedclusters') {
+        const props = resource.properties;
+        if (Array.isArray(props?.agentPoolProfiles) && props.agentPoolProfiles.length > 0) {
+            const total = props.agentPoolProfiles.reduce((sum, pool) => sum + (typeof pool.count === 'number' && pool.count > 0 ? pool.count : 1), 0);
+            return total > 0 ? total : undefined;
+        }
+        return undefined;
+    }
+    return undefined;
+}
+/**
  * Extract relevant properties from an ARM resource
  * Only includes non-sensitive properties that may be useful for analysis
  * @param resource - ARM resource object
@@ -45554,6 +45580,7 @@ function extractSingleResourceMetadata(resource, context) {
     const licenseType = extractLicenseType(resource, type);
     const messagingUnits = extractMessagingUnits(resource, type);
     const capacityUnits = extractCapacityUnits(resource, type);
+    const instanceCount = extractInstanceCount(resource, type);
     const metadata = {
         type,
         kind,
@@ -45594,6 +45621,9 @@ function extractSingleResourceMetadata(resource, context) {
     }
     if (capacityUnits !== undefined) {
         metadata.capacityUnits = capacityUnits;
+    }
+    if (instanceCount !== undefined) {
+        metadata.instanceCount = instanceCount;
     }
     return metadata;
 }
@@ -46304,6 +46334,9 @@ function hasChanges(base, head) {
     if (base.capacityUnits !== head.capacityUnits) {
         return true;
     }
+    if (base.instanceCount !== head.instanceCount) {
+        return true;
+    }
     return false;
 }
 /**
@@ -46399,6 +46432,8 @@ function diffResources(baseResources, headResources) {
                             oldMessagingUnits: unmatchedBase.messagingUnits,
                             capacityUnits: headResource.capacityUnits,
                             oldCapacityUnits: unmatchedBase.capacityUnits,
+                            instanceCount: headResource.instanceCount,
+                            oldInstanceCount: unmatchedBase.instanceCount,
                         });
                         modified++;
                         log.debug(`Modified: ${headResource.type} (${unmatchedBase.sku} -> ${headResource.sku})`);
@@ -46426,6 +46461,7 @@ function diffResources(baseResources, headResources) {
                 highAvailability: headResource.highAvailability,
                 messagingUnits: headResource.messagingUnits,
                 capacityUnits: headResource.capacityUnits,
+                instanceCount: headResource.instanceCount,
             });
             added++;
             log.debug(`Added: ${headResource.type} (${headResource.sku || 'no sku'})`);
@@ -46458,6 +46494,8 @@ function diffResources(baseResources, headResources) {
                     oldMessagingUnits: baseResource.messagingUnits,
                     capacityUnits: headResource.capacityUnits,
                     oldCapacityUnits: baseResource.capacityUnits,
+                    instanceCount: headResource.instanceCount,
+                    oldInstanceCount: baseResource.instanceCount,
                 });
                 modified++;
                 log.debug(`Modified: ${headResource.type} (${baseResource.sku} -> ${headResource.sku})`);
@@ -46490,6 +46528,7 @@ function diffResources(baseResources, headResources) {
                     highAvailability: baseResource.highAvailability,
                     messagingUnits: baseResource.messagingUnits,
                     capacityUnits: baseResource.capacityUnits,
+                    instanceCount: baseResource.instanceCount,
                 });
                 removed++;
                 log.debug(`Removed: ${baseResource.type} (${baseResource.sku || 'no sku'})`);
@@ -46791,7 +46830,7 @@ function sanitizeSingleResource(resource, removedFields, options = {}) {
     const { change = 'modified', oldSku, oldRegion, oldShardCount, oldOsType, oldHighAvailability, oldLicenseType, oldMessagingUnits, oldCapacityUnits, } = options;
     const sanitized = {
         kind: resource.kind,
-        count: 1, // Each resource counts as 1; aggregation happens at a higher level if needed
+        count: resource.instanceCount ?? 1,
         change,
     };
     // SKU is safe to include (e.g., "Standard_D2s_v3")
@@ -47235,6 +47274,7 @@ async function run() {
                                     licenseType: isRemoved ? diff.oldLicenseType : diff.licenseType,
                                     messagingUnits: isRemoved ? diff.oldMessagingUnits : diff.messagingUnits,
                                     capacityUnits: isRemoved ? diff.oldCapacityUnits : diff.capacityUnits,
+                                    instanceCount: isRemoved ? diff.instanceCount : diff.instanceCount,
                                 };
                                 resourcesWithChange.push({
                                     resource,

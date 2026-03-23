@@ -26,9 +26,11 @@ export interface ResourceDiff {
     oldLicenseType?: string;
     messagingUnits?: number;
     capacityUnits?: number;
+    instanceCount?: number;
     oldHighAvailability?: string;
     oldMessagingUnits?: number;
     oldCapacityUnits?: number;
+    oldInstanceCount?: number;
 }
 /**
  * Result of diffing resources between base and head

@@ -17,6 +17,7 @@ export interface ResourceMetadata {
     licenseType?: string;
     messagingUnits?: number;
     capacityUnits?: number;
+    instanceCount?: number;
 }
 /**
  * Result of extracting resource metadata from ARM JSON
