@@ -42,7 +42,7 @@ ResourcePulse never sees your source code. Only anonymized resource metadata (ty
 | SKU suggestions | — | ✓ | ✓ |
 | Org policy | — | — | ✓ |
 | Repos | 1 (rate-limited) | 3 | 10 |
-| Analyses/month | 25 | 1,000 | 5,000 |
+| Analyses/month | 30 | 1,000 | 5,000 |
 
 Get an API key at [resourcepulseapp.com](https://www.resourcepulseapp.com).
 
