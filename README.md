@@ -72,7 +72,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: resourcepulse-io/azure-iac-reviewer@main
+      - uses: resourcepulse-io/azure-iac-reviewer@v1
         with:
           param_file: infra/params/dev.bicepparam   # for region resolution
           comment_mode: update
@@ -83,7 +83,7 @@ jobs:
 ### Starter / Team (API key)
 
 ```yaml
-- uses: resourcepulse-io/azure-iac-reviewer@main
+- uses: resourcepulse-io/azure-iac-reviewer@v1
   with:
     api_key: ${{ secrets.RESOURCEPULSE_API_KEY }}
     param_file: infra/params/dev.bicepparam
