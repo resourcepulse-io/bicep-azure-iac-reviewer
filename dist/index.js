@@ -44285,7 +44285,7 @@ const sanitize_1 = __nccwpck_require__(8020);
 /**
  * Default backend API URL
  */
-const DEFAULT_BACKEND_URL = 'https://dev.resourcepulseapp.com';
+const DEFAULT_BACKEND_URL = 'https://api.resourcepulseapp.com';
 /**
  * Default timeout for backend requests (60 seconds)
  */
