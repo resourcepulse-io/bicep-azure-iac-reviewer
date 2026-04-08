@@ -210,7 +210,8 @@ Without either, cost rows will show:
 
 ## Privacy
 
-**Transmitted (anonymized metadata only):**
+**Transmitted:**
+- Repository name and PR number (for authentication and rate limiting)
 - Resource types (`Microsoft.Storage/storageAccounts`)
 - SKUs (`Standard_GRS`)
 - Azure regions (`westeurope`)
@@ -223,6 +224,10 @@ Without either, cost rows will show:
 - Tag values
 - Secrets or connection strings
 - Any personally identifiable information
+
+**AI usage:** Starter/Team SKU suggestions include AI-generated descriptions (Azure OpenAI, GPT-5-mini). Only generic SKU/service names are sent to the AI model during a daily refresh — no customer data is included. AI content is marked in PR comments.
+
+See [SECURITY.md](SECURITY.md) for full details, or our [Terms](https://www.resourcepulseapp.com/terms) and [Privacy Policy](https://www.resourcepulseapp.com/ResourcePulse_Privacy_Policy.pdf).
 
 ---
 

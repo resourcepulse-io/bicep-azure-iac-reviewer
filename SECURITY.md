@@ -22,18 +22,20 @@ The following data is **NEVER** collected, transmitted, or stored:
 
 ### What We DO Collect (Anonymized Metadata Only)
 
-When using the backend service (with API key), only the following anonymized metadata is transmitted:
+When using the backend service (with API key or OIDC preview mode), the following metadata is transmitted:
 
+- **Repository identifier**: Owner and repository name (e.g., `myorg/myrepo`) — used for authentication, repo binding, and rate limiting
+- **PR number and commit SHA**: Used to correlate the analysis with the pull request
 - **Resource Types**: The Azure resource type (e.g., `Microsoft.Compute/virtualMachines`)
 - **SKUs**: Resource sizing information (e.g., `Standard_D2s_v3`)
 - **Azure Regions**: Deployment locations (e.g., `eastus`, `westeurope`)
 - **Resource Counts**: Number of resources by type
 - **Change Types**: Whether resources were added, modified, or removed in the PR
+- **Tag keys only**: Tag names without their values (e.g., `environment` but not `production`)
 
-This metadata is:
-- Completely anonymized
-- Cannot be traced back to specific resources
-- Does not contain any identifying information
+Resource metadata is:
+- Anonymized — resource names, IDs, and identifiers are stripped before transmission
+- Cannot be traced back to specific Azure resources
 - Safe for use in regulated environments
 
 ### Example: What Gets Sent vs. What Stays Private
@@ -123,9 +125,17 @@ When an API key is provided, the action communicates with the backend service ov
 The ResourcePulse backend service:
 - Does not log or store resource identifiers
 - Processes requests in memory
-- Does not correlate requests across repositories
-- Does not share data with third parties
-- Complies with GDPR and SOC 2 requirements
+- Does not share raw request data with third parties
+
+### AI-Assisted Features (Starter/Team Plans)
+
+On paid plans, SKU alternative suggestions include AI-generated descriptions to help explain the
+trade-offs between SKUs. This feature uses Azure OpenAI (GPT-5-mini) during a daily pricing
+refresh cycle — not at request time. Only generic SKU names and Azure service names are sent to
+the AI model; no customer data, repository names, or resource identifiers are included.
+
+AI-generated content is clearly marked in PR comments with a note:
+> Suggestions are AI-generated and may not be accurate. Always verify before applying changes.
 
 ## Reporting Security Vulnerabilities
 
@@ -209,29 +219,28 @@ Do not grant:
 3. **Enable GitHub secret scanning**
 4. **Use Dependabot** for dependency updates
 
-## Compliance and Certifications
+## Compliance
 
-- **GDPR Compliant**: No personal data collected
-- **SOC 2 Type II**: Backend service certified (available upon request)
-- **ISO 27001**: Information security management
-- **HIPAA**: Safe for healthcare infrastructure (no PHI transmitted)
-- **PCI DSS**: Safe for payment infrastructure (no cardholder data transmitted)
+- **GDPR**: No personal data is collected from Bicep files. Repository identifiers transmitted for authentication are processed under legitimate interest (service delivery). See our [Privacy Policy](https://www.resourcepulseapp.com/ResourcePulse_Privacy_Policy.pdf) for details.
+- **No PHI or cardholder data**: The action never transmits health information, payment card data, or other regulated content — only infrastructure metadata.
 
 ## Data Retention
 
 - **GitHub Actions Logs**: Retained per your GitHub organization settings
-- **Backend Service**: No data retention - all processing is stateless and in-memory
+- **Backend Service**: Analysis requests are processed in memory and not persisted. Structured logs (containing repository name, PR number, and analysis status) are retained in Application Insights for 90 days for operational monitoring.
 - **PR Comments**: Visible in pull requests until deleted by repository administrators
 
-## Third-Party Dependencies
+## Third-Party Services
 
 This action uses the following third-party services:
 
 1. **Bicep CLI**: Downloaded directly from Microsoft's official releases (verified checksums)
 2. **GitHub API**: For PR context and comment posting (OAuth via GITHUB_TOKEN)
-3. **Backend Service** (optional): Only if API key provided
+3. **ResourcePulse Backend** (optional): Hosted on Azure Container Apps. Only contacted when an API key is provided or OIDC preview mode is used.
+4. **Azure OpenAI** (indirect): Used during daily pricing refresh to generate SKU descriptions. No customer data is sent — only generic Azure SKU and service names. Not called at analysis request time.
+5. **Paddle** (indirect): Payment processing for paid plans. Paddle acts as Merchant of Record. See [Paddle's privacy policy](https://www.paddle.com/legal/privacy).
 
-All dependencies are:
+Code dependencies are:
 - Pinned to specific versions
 - Scanned for vulnerabilities via Dependabot
 - Reviewed before updates
@@ -259,4 +268,4 @@ This security policy may be updated periodically. Significant changes will be:
 - Communicated via GitHub Security Advisories
 - Versioned in this repository
 
-Last updated: 2026-01-16
+Last updated: 2026-04-08
