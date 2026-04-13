@@ -44287,6 +44287,10 @@ const sanitize_1 = __nccwpck_require__(8020);
  */
 const DEFAULT_BACKEND_URL = 'https://api.resourcepulseapp.com';
 /**
+ * Development backend API URL
+ */
+const DEV_BACKEND_URL = 'https://dev.resourcepulseapp.com';
+/**
  * Default timeout for backend requests (60 seconds)
  */
 const DEFAULT_TIMEOUT_MS = 60000;
@@ -44422,7 +44426,7 @@ function toApiResource(resource) {
  * @param callContext - Full context including repo, PR, run, and git context
  * @returns Backend call result with response and error details
  */
-async function callBackend(resources, apiKey, backendUrl, callContext) {
+async function callBackend(resources, apiKey, backendUrl, callContext, useDev, adminKey) {
     // Validate no sensitive data before sending
     const validation = (0, sanitize_1.validateNoSensitiveData)(resources);
     if (!validation.valid) {
@@ -44438,6 +44442,8 @@ async function callBackend(resources, apiKey, backendUrl, callContext) {
         run: callContext.run,
         context: callContext.context,
         resources: apiResources,
+        ...(useDev && { dev: true }),
+        ...(adminKey && { adminKey }),
     };
     log.debug(`Calling backend API: ${backendUrl}`);
     log.debug(`Sending ${resources.length} sanitized resource(s)`);
@@ -44522,8 +44528,8 @@ async function callBackend(resources, apiKey, backendUrl, callContext) {
  * @returns Analysis result with markdown message
  */
 async function analyzeResources(resources, options = {}) {
-    const { apiKey, callContext } = options;
-    const backendUrl = DEFAULT_BACKEND_URL;
+    const { apiKey, callContext, useDev, adminKey } = options;
+    const backendUrl = useDev ? DEV_BACKEND_URL : DEFAULT_BACKEND_URL;
     log.debug('Starting resource analysis');
     log.debug(`API key provided: ${apiKey ? 'yes' : 'no'}`);
     log.debug(`Server address: ${backendUrl}`);
@@ -44549,7 +44555,7 @@ async function analyzeResources(resources, options = {}) {
     }
     // Try to call backend
     log.info(`Attempting backend analysis at ${backendUrl}`);
-    const backendResult = await callBackend(resources, apiKey, backendUrl, callContext);
+    const backendResult = await callBackend(resources, apiKey, backendUrl, callContext, useDev, adminKey);
     // Check if backend response indicates success
     if (backendResult.response) {
         // Respect the success flag from the API response
@@ -47326,16 +47332,32 @@ async function run() {
         const apiKey = core.getInput('api_key') || undefined;
         const commentMode = (core.getInput('comment_mode') || 'update');
         const envInput = core.getInput('env').trim();
-        // If no api_key, try GitHub OIDC token for sandbox mode
-        let authToken = apiKey;
-        if (!authToken) {
-            try {
-                log.info('No api_key provided — requesting OIDC token for sandbox mode');
-                authToken = await core.getIDToken('resourcepulse');
-                log.info('OIDC token obtained — using sandbox path');
-            }
-            catch {
-                log.info('Could not obtain OIDC token (id-token: write permission required for sandbox mode)');
+        const useDev = core.getInput('use_dev').toLowerCase() === 'true';
+        const adminKey = core.getInput('admin_key') || undefined;
+        // Validate dev mode configuration
+        if (useDev && !adminKey) {
+            throw new Error('use_dev requires admin_key to be set');
+        }
+        if (adminKey && !useDev) {
+            log.warning('admin_key provided without use_dev=true — ignoring admin_key');
+        }
+        // Resolve auth token: dev mode uses admin_key, otherwise api_key or OIDC
+        let authToken;
+        if (useDev) {
+            authToken = adminKey;
+            log.info('Dev mode enabled — using admin_key for authentication against dev backend');
+        }
+        else {
+            authToken = apiKey;
+            if (!authToken) {
+                try {
+                    log.info('No api_key provided — requesting OIDC token for sandbox mode');
+                    authToken = await core.getIDToken('resourcepulse');
+                    log.info('OIDC token obtained — using sandbox path');
+                }
+                catch {
+                    log.info('Could not obtain OIDC token (id-token: write permission required for sandbox mode)');
+                }
             }
         }
         // If no region data and no auth — nothing meaningful to send, skip analysis
@@ -47377,6 +47399,8 @@ async function run() {
         const analysisResult = await analyzeResources(sanitizationResult.resources, {
             apiKey: authToken,
             callContext,
+            useDev,
+            adminKey: useDev ? adminKey : undefined,
         });
         log.info(`Analysis completed using ${analysisResult.source} source`);
         // Format as PR comment
@@ -47414,8 +47438,13 @@ async function run() {
         // Block merge if a blocking policy rule fired (Pro only)
         if (analysisResult.blocked === true) {
             core.setOutput('analysis_status', 'blocked');
-            core.setFailed('ResourcePulse: merge blocked by policy violation. See PR comment for details.');
-            return;
+            if (useDev) {
+                log.warning('Dev mode: policy violation detected but not failing the workflow');
+            }
+            else {
+                core.setFailed('ResourcePulse: merge blocked by policy violation. See PR comment for details.');
+                return;
+            }
         }
         core.setOutput('analysis_status', 'success');
         log.info('Azure IaC Reviewer completed successfully');

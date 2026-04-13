@@ -83,6 +83,8 @@ export interface BackendCallContext {
 export interface AnalyzeOptions {
     apiKey?: string;
     callContext?: BackendCallContext;
+    useDev?: boolean;
+    adminKey?: string;
 }
 /**
  * Analyze resources using backend service or local fallback

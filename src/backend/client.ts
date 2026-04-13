@@ -7,6 +7,11 @@ import { SanitizedResource, validateNoSensitiveData } from '../iac/sanitize';
 const DEFAULT_BACKEND_URL = 'https://api.resourcepulseapp.com';
 
 /**
+ * Development backend API URL
+ */
+const DEV_BACKEND_URL = 'https://dev.resourcepulseapp.com';
+
+/**
  * Result of the analysis operation
  */
 export interface AnalysisResult {
@@ -90,6 +95,8 @@ interface AnalysisRequest {
   run: RunInfo;
   context: ContextInfo;
   resources: ApiResource[];
+  dev?: boolean;
+  adminKey?: string;
 }
 
 /**
@@ -274,7 +281,9 @@ async function callBackend(
   resources: SanitizedResource[],
   apiKey: string,
   backendUrl: string,
-  callContext: BackendCallContext
+  callContext: BackendCallContext,
+  useDev?: boolean,
+  adminKey?: string
 ): Promise<BackendCallResult> {
   // Validate no sensitive data before sending
   const validation = validateNoSensitiveData(resources);
@@ -295,6 +304,8 @@ async function callBackend(
     run: callContext.run,
     context: callContext.context,
     resources: apiResources,
+    ...(useDev && { dev: true }),
+    ...(adminKey && { adminKey }),
   };
 
   log.debug(`Calling backend API: ${backendUrl}`);
@@ -390,6 +401,8 @@ async function callBackend(
 export interface AnalyzeOptions {
   apiKey?: string;
   callContext?: BackendCallContext;
+  useDev?: boolean;
+  adminKey?: string;
 }
 
 /**
@@ -403,8 +416,8 @@ export async function analyzeResources(
   resources: SanitizedResource[],
   options: AnalyzeOptions = {}
 ): Promise<AnalysisResult> {
-  const { apiKey, callContext } = options;
-  const backendUrl = DEFAULT_BACKEND_URL;
+  const { apiKey, callContext, useDev, adminKey } = options;
+  const backendUrl = useDev ? DEV_BACKEND_URL : DEFAULT_BACKEND_URL;
 
   log.debug('Starting resource analysis');
   log.debug(`API key provided: ${apiKey ? 'yes' : 'no'}`);
@@ -439,7 +452,9 @@ export async function analyzeResources(
     resources,
     apiKey,
     backendUrl,
-    callContext
+    callContext,
+    useDev,
+    adminKey
   );
 
   // Check if backend response indicates success

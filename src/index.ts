@@ -323,16 +323,32 @@ async function run(): Promise<void> {
     const apiKey = core.getInput('api_key') || undefined;
     const commentMode = (core.getInput('comment_mode') || 'update') as 'update' | 'new';
     const envInput = core.getInput('env').trim();
+    const useDev = core.getInput('use_dev').toLowerCase() === 'true';
+    const adminKey = core.getInput('admin_key') || undefined;
 
-    // If no api_key, try GitHub OIDC token for sandbox mode
-    let authToken = apiKey;
-    if (!authToken) {
-      try {
-        log.info('No api_key provided — requesting OIDC token for sandbox mode');
-        authToken = await core.getIDToken('resourcepulse');
-        log.info('OIDC token obtained — using sandbox path');
-      } catch {
-        log.info('Could not obtain OIDC token (id-token: write permission required for sandbox mode)');
+    // Validate dev mode configuration
+    if (useDev && !adminKey) {
+      throw new Error('use_dev requires admin_key to be set');
+    }
+    if (adminKey && !useDev) {
+      log.warning('admin_key provided without use_dev=true — ignoring admin_key');
+    }
+
+    // Resolve auth token: dev mode uses admin_key, otherwise api_key or OIDC
+    let authToken: string | undefined;
+    if (useDev) {
+      authToken = adminKey;
+      log.info('Dev mode enabled — using admin_key for authentication against dev backend');
+    } else {
+      authToken = apiKey;
+      if (!authToken) {
+        try {
+          log.info('No api_key provided — requesting OIDC token for sandbox mode');
+          authToken = await core.getIDToken('resourcepulse');
+          log.info('OIDC token obtained — using sandbox path');
+        } catch {
+          log.info('Could not obtain OIDC token (id-token: write permission required for sandbox mode)');
+        }
       }
     }
     // If no region data and no auth — nothing meaningful to send, skip analysis
@@ -380,6 +396,8 @@ async function run(): Promise<void> {
     const analysisResult = await analyzeResources(sanitizationResult.resources, {
       apiKey: authToken,
       callContext,
+      useDev,
+      adminKey: useDev ? adminKey : undefined,
     });
 
     log.info(`Analysis completed using ${analysisResult.source} source`);
@@ -421,8 +439,12 @@ async function run(): Promise<void> {
     // Block merge if a blocking policy rule fired (Pro only)
     if (analysisResult.blocked === true) {
       core.setOutput('analysis_status', 'blocked');
-      core.setFailed('ResourcePulse: merge blocked by policy violation. See PR comment for details.');
-      return;
+      if (useDev) {
+        log.warning('Dev mode: policy violation detected but not failing the workflow');
+      } else {
+        core.setFailed('ResourcePulse: merge blocked by policy violation. See PR comment for details.');
+        return;
+      }
     }
 
     core.setOutput('analysis_status', 'success');

@@ -27,6 +27,14 @@ inputs:
     description: 'Fallback Azure region when param_file is not provided (e.g., eastus, westeurope)'
     required: false
     default: ''
+  use_dev:
+    description: 'Use the development backend for testing (requires admin_key)'
+    required: false
+    default: 'false'
+  admin_key:
+    description: 'Admin key for authenticating against the development backend'
+    required: false
+    default: ''
 
 outputs:
   resources_detected:
