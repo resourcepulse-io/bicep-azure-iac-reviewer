@@ -44426,7 +44426,7 @@ function toApiResource(resource) {
  * @param callContext - Full context including repo, PR, run, and git context
  * @returns Backend call result with response and error details
  */
-async function callBackend(resources, apiKey, backendUrl, callContext, useDev, adminKey) {
+async function callBackend(resources, apiKey, backendUrl, callContext, useDev, adminKey, orgApiKey) {
     // Validate no sensitive data before sending
     const validation = (0, sanitize_1.validateNoSensitiveData)(resources);
     if (!validation.valid) {
@@ -44444,6 +44444,7 @@ async function callBackend(resources, apiKey, backendUrl, callContext, useDev, a
         resources: apiResources,
         ...(useDev && { dev: true }),
         ...(adminKey && { adminKey }),
+        ...(orgApiKey && { apiKey: orgApiKey }),
     };
     log.debug(`Calling backend API: ${backendUrl}`);
     log.debug(`Sending ${resources.length} sanitized resource(s)`);
@@ -44453,7 +44454,8 @@ async function callBackend(resources, apiKey, backendUrl, callContext, useDev, a
         // Create AbortController for timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
-        const response = await fetch(`${backendUrl}/analyze`, {
+        const analyzePath = useDev ? '/analyze/dev' : '/analyze';
+        const response = await fetch(`${backendUrl}${analyzePath}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -44528,7 +44530,7 @@ async function callBackend(resources, apiKey, backendUrl, callContext, useDev, a
  * @returns Analysis result with markdown message
  */
 async function analyzeResources(resources, options = {}) {
-    const { apiKey, callContext, useDev, adminKey } = options;
+    const { apiKey, callContext, useDev, adminKey, orgApiKey } = options;
     const backendUrl = useDev ? DEV_BACKEND_URL : DEFAULT_BACKEND_URL;
     log.debug('Starting resource analysis');
     log.debug(`API key provided: ${apiKey ? 'yes' : 'no'}`);
@@ -44555,7 +44557,7 @@ async function analyzeResources(resources, options = {}) {
     }
     // Try to call backend
     log.info(`Attempting backend analysis at ${backendUrl}`);
-    const backendResult = await callBackend(resources, apiKey, backendUrl, callContext, useDev, adminKey);
+    const backendResult = await callBackend(resources, apiKey, backendUrl, callContext, useDev, adminKey, orgApiKey);
     // Check if backend response indicates success
     if (backendResult.response) {
         // Respect the success flag from the API response
@@ -47401,6 +47403,7 @@ async function run() {
             callContext,
             useDev,
             adminKey: useDev ? adminKey : undefined,
+            orgApiKey: useDev ? apiKey : undefined,
         });
         log.info(`Analysis completed using ${analysisResult.source} source`);
         // Format as PR comment

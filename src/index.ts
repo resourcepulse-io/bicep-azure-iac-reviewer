@@ -398,6 +398,7 @@ async function run(): Promise<void> {
       callContext,
       useDev,
       adminKey: useDev ? adminKey : undefined,
+      orgApiKey: useDev ? apiKey : undefined,
     });
 
     log.info(`Analysis completed using ${analysisResult.source} source`);

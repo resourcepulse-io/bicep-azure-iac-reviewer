@@ -97,6 +97,7 @@ interface AnalysisRequest {
   resources: ApiResource[];
   dev?: boolean;
   adminKey?: string;
+  apiKey?: string;
 }
 
 /**
@@ -283,7 +284,8 @@ async function callBackend(
   backendUrl: string,
   callContext: BackendCallContext,
   useDev?: boolean,
-  adminKey?: string
+  adminKey?: string,
+  orgApiKey?: string
 ): Promise<BackendCallResult> {
   // Validate no sensitive data before sending
   const validation = validateNoSensitiveData(resources);
@@ -306,6 +308,7 @@ async function callBackend(
     resources: apiResources,
     ...(useDev && { dev: true }),
     ...(adminKey && { adminKey }),
+    ...(orgApiKey && { apiKey: orgApiKey }),
   };
 
   log.debug(`Calling backend API: ${backendUrl}`);
@@ -318,7 +321,8 @@ async function callBackend(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-    const response = await fetch(`${backendUrl}/analyze`, {
+    const analyzePath = useDev ? '/analyze/dev' : '/analyze';
+    const response = await fetch(`${backendUrl}${analyzePath}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -403,6 +407,7 @@ export interface AnalyzeOptions {
   callContext?: BackendCallContext;
   useDev?: boolean;
   adminKey?: string;
+  orgApiKey?: string;
 }
 
 /**
@@ -416,7 +421,7 @@ export async function analyzeResources(
   resources: SanitizedResource[],
   options: AnalyzeOptions = {}
 ): Promise<AnalysisResult> {
-  const { apiKey, callContext, useDev, adminKey } = options;
+  const { apiKey, callContext, useDev, adminKey, orgApiKey } = options;
   const backendUrl = useDev ? DEV_BACKEND_URL : DEFAULT_BACKEND_URL;
 
   log.debug('Starting resource analysis');
@@ -454,7 +459,8 @@ export async function analyzeResources(
     backendUrl,
     callContext,
     useDev,
-    adminKey
+    adminKey,
+    orgApiKey
   );
 
   // Check if backend response indicates success
