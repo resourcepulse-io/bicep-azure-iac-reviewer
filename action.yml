@@ -3,8 +3,8 @@ description: 'Analyzes Azure Bicep files in pull requests and provides cost insi
 author: 'resourcepulse-io'
 
 branding:
-  icon: 'cloud'
-  color: 'blue'
+  icon: 'activity'
+  color: 'purple'
 
 inputs:
   api_key:
