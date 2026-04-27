@@ -606,6 +606,113 @@ describe('ARM Extract Module', () => {
       expect(result.resources[0].osType).toBeUndefined();
     });
 
+    it('should default kind-less serverfarms to Windows (Azure deployment default)', () => {
+      // Per Azure docs (every API version): `properties.reserved` "If Linux app service
+      // plan true, false otherwise" — so a serverfarms resource with neither `kind:linux`
+      // nor `properties.reserved:true` deploys as Windows. We mirror that here.
+      const armJson = JSON.stringify({
+        $schema:
+          'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        resources: [
+          {
+            type: 'Microsoft.Web/serverfarms',
+            apiVersion: '2023-01-01',
+            sku: { name: 'P1v2', tier: 'PremiumV2' },
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson);
+
+      expect(result.resources[0].osType).toBe('windows');
+    });
+
+    it('should set osType=linux when serverfarms properties.reserved is true', () => {
+      // Regression: many Bicep templates set `reserved: true` without ever setting `kind`.
+      // Without this check we'd label the plan Windows even though Azure deploys it as Linux.
+      const armJson = JSON.stringify({
+        $schema:
+          'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        resources: [
+          {
+            type: 'Microsoft.Web/serverfarms',
+            apiVersion: '2023-01-01',
+            properties: { reserved: true },
+            sku: { name: 'P1v3' },
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson);
+
+      expect(result.resources[0].osType).toBe('linux');
+    });
+
+    it('should set osType=linux when serverfarms kind contains "linux"', () => {
+      const armJson = JSON.stringify({
+        $schema:
+          'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        resources: [
+          {
+            type: 'Microsoft.Web/serverfarms',
+            apiVersion: '2023-01-01',
+            kind: 'linux',
+            sku: { name: 'P1v2' },
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson);
+
+      expect(result.resources[0].osType).toBe('linux');
+    });
+
+    it('should set osType=windows when serverfarms kind is "app" (legacy Windows marker)', () => {
+      const armJson = JSON.stringify({
+        $schema:
+          'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        resources: [
+          {
+            type: 'Microsoft.Web/serverfarms',
+            apiVersion: '2023-01-01',
+            kind: 'app',
+            sku: { name: 'P1v3' },
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson);
+
+      expect(result.resources[0].osType).toBe('windows');
+    });
+
+    it('should prefer properties.reserved=true over a misleading kind value', () => {
+      // Edge case: kind says "app" (Windows marker) but reserved=true deploys as Linux.
+      // Azure honours `reserved`, so we should too.
+      const armJson = JSON.stringify({
+        $schema:
+          'https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#',
+        contentVersion: '1.0.0.0',
+        resources: [
+          {
+            type: 'Microsoft.Web/serverfarms',
+            apiVersion: '2023-01-01',
+            kind: 'app',
+            properties: { reserved: true },
+            sku: { name: 'P1v3' },
+          },
+        ],
+      });
+
+      const result = extractResourceMetadata(armJson);
+
+      expect(result.resources[0].osType).toBe('linux');
+    });
+
     it('should resolve resourceGroup().location using param values', () => {
       const armJson = JSON.stringify({
         $schema:

@@ -45434,8 +45434,17 @@ function normalizeLiteralOsType(value) {
  */
 function extractOsType(resource, type) {
     const lowerType = type.toLowerCase();
-    // App Service Plan: top-level "kind" field contains "linux" for Linux plans; absent or "app" = Windows
+    // App Service Plan OS detection — match Azure's deployment semantics:
+    //   - properties.reserved === true → Linux  (per Azure docs: "If Linux app service plan true, false otherwise")
+    //   - kind contains "linux"        → Linux
+    //   - otherwise (including kind absent) → Windows  (Azure's default for serverfarms)
+    // The reserved flag is checked first because it's the authoritative signal — many Bicep
+    // templates set `reserved: true` without ever setting `kind`.
     if (lowerType === 'microsoft.web/serverfarms') {
+        const props = resource.properties;
+        if (props?.reserved === true) {
+            return 'linux';
+        }
         const kind = resource.kind;
         if (typeof kind === 'string' && !isArmExpression(kind) && kind.toLowerCase().includes('linux')) {
             return 'linux';
