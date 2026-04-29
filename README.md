@@ -2,8 +2,11 @@
 
 A GitHub Action that analyzes Azure Bicep files in pull requests, providing cost impact estimates and best-practice findings — no signup required.
 
+🌐 **[resourcepulseapp.com](https://www.resourcepulseapp.com)** · 🚀 [Get started free](https://www.resourcepulseapp.com) · 📖 [Documentation](https://www.resourcepulseapp.com/docs) · 💬 [Report an issue](https://github.com/resourcepulse-io/azure-iac-reviewer/issues)
+
 [![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=flat&logo=github-actions&logoColor=white)](https://github.com/resourcepulse-io/azure-iac-reviewer)
 [![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-blue.svg)](LICENSE)
+[![Website](https://img.shields.io/badge/Website-resourcepulseapp.com-1F2937?style=flat)](https://www.resourcepulseapp.com)
 
 ---
 
@@ -36,7 +39,7 @@ ResourcePulse never sees your source code. Only anonymized resource metadata (ty
 | | **Preview** | **Starter** | **Team** |
 |--|------------|-------------|----------|
 | Setup | No signup · uses OIDC | API key | API key |
-| Price | Free | $29/mo | $79/mo |
+| Price | Free | $29/mo | $79.99/mo |
 | Cost estimates | ✓ | ✓ | ✓ |
 | Ruleset findings | ✓ | ✓ | ✓ |
 | SKU suggestions | — | ✓ | ✓ |
